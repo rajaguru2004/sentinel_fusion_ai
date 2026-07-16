@@ -1,0 +1,64 @@
+{
+  "model": "cyber",
+  "library": "lightgbm",
+  "rows": {
+    "train": 416404,
+    "val": 89230,
+    "test": 89231
+  },
+  "positive_rate_train": 0.7111,
+  "threshold_val_maxF1": 0.257323,
+  "test": {
+    "accuracy": 0.9705,
+    "precision": 0.9552,
+    "recall": 0.969,
+    "f1": 0.962,
+    "roc_auc": 0.9975,
+    "confusion_matrix": {
+      "tn": 53221.0,
+      "fp": 1565.0,
+      "fn": 1069.0,
+      "tp": 33376.0
+    }
+  },
+  "test_population_weighted": {
+    "accuracy": 0.9962,
+    "precision": 0.996,
+    "recall": 0.9973,
+    "f1": 0.9966,
+    "roc_auc": 1.0,
+    "confusion_matrix": {
+      "tn": 302831.6178800898,
+      "fp": 1565.0,
+      "fn": 1069.0,
+      "tp": 388632.5354665319
+    }
+  },
+  "latency": {
+    "single_row_ms": {
+      "mean": 0.959,
+      "p50": 0.792,
+      "p95": 2.243
+    },
+    "batch_rows": 10000,
+    "batch_rows_per_sec": 1848495
+  },
+  "best_iteration": 188,
+  "shap_top_features": {
+    "f_device_past_hisev_count": 4.37078,
+    "dst_port": 2.93236,
+    "f_user_past_malicious_rate": 2.32095,
+    "duration_s": 0.77721,
+    "f_bytes_ratio": 0.60652,
+    "f_hour": 0.49919,
+    "bytes_out": 0.49495,
+    "f_log1p_bytes_in": 0.4459,
+    "f_user_seq_no": 0.4097,
+    "f_user_secs_since_last": 0.25021,
+    "f_log1p_bytes_out": 0.23169,
+    "f_device_seq_no": 0.22501,
+    "f_dayofweek": 0.14473,
+    "event_subtype": 0.10945,
+    "protocol": 0.10271
+  }
+}

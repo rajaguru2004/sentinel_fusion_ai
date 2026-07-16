@@ -1,0 +1,21 @@
+{
+  "model": "quantum",
+  "sample_rows": 2000,
+  "mean_abs_shap_top15": {
+    "q_data_class": 4.24012,
+    "q_cert_key_type": 2.28059,
+    "bytes_out": 2.26947,
+    "event_subtype": 1.48609,
+    "q_key_exchange": 0.73574,
+    "f_log1p_bytes_out": 0.59176,
+    "q_cert_age_days": 0.0517,
+    "f_device_seq_no": 0.03187,
+    "country": 0.025,
+    "f_hour_cos": 0.02188,
+    "f_hour_sin": 0.01156,
+    "q_cert_validity_days": 0.01094,
+    "f_hour": 0.00897,
+    "f_dayofweek": 0.00567,
+    "f_is_night": 0.00403
+  }
+}

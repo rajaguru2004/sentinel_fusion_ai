@@ -1,0 +1,155 @@
+{
+  "seed": 42,
+  "data": {
+    "file": "unified_events_engineered.parquet",
+    "rows": 2043664,
+    "split_rule": "per-source temporal quantile cut on (event_time, event_id) order"
+  },
+  "versions": {
+    "python": "3.12.13",
+    "pandas": "3.0.3",
+    "numpy": "2.4.6",
+    "sklearn": "1.9.0",
+    "xgboost": "3.3.0",
+    "lightgbm": "4.6.0",
+    "shap": "0.52.0"
+  },
+  "params": {
+    "xgb": {
+      "n_estimators": 400,
+      "learning_rate": 0.1,
+      "max_depth": 6,
+      "min_child_weight": 5,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "tree_method": "hist",
+      "eval_metric": "aucpr",
+      "early_stopping_rounds": 30,
+      "random_state": 42
+    },
+    "lgbm": {
+      "n_estimators": 500,
+      "learning_rate": 0.1,
+      "num_leaves": 63,
+      "min_child_samples": 50,
+      "subsample": 0.8,
+      "subsample_freq": 1,
+      "colsample_bytree": 0.8,
+      "objective": "binary",
+      "random_state": 42,
+      "verbosity": -1
+    },
+    "iforest": {
+      "n_estimators": 300,
+      "max_samples": 256,
+      "contamination": "auto",
+      "random_state": 42
+    }
+  },
+  "features": {
+    "fraud": {
+      "numeric": [
+        "amount",
+        "f_log1p_amount",
+        "f_amount_z_user",
+        "f_amount_ratio_mean",
+        "duration_s",
+        "f_user_seq_no",
+        "f_user_secs_since_last",
+        "f_user_past_malicious_rate",
+        "f_user_new_country",
+        "f_hour",
+        "f_dayofweek",
+        "f_is_weekend",
+        "f_is_night",
+        "f_hour_sin",
+        "f_hour_cos"
+      ],
+      "categorical": [
+        "event_type"
+      ]
+    },
+    "cyber": {
+      "numeric": [
+        "duration_s",
+        "bytes_in",
+        "bytes_out",
+        "f_log1p_bytes_in",
+        "f_log1p_bytes_out",
+        "f_bytes_ratio",
+        "src_port",
+        "dst_port",
+        "f_user_seq_no",
+        "f_user_secs_since_last",
+        "f_user_past_malicious_rate",
+        "f_user_new_country",
+        "f_device_seq_no",
+        "f_device_past_hisev_count",
+        "f_hour",
+        "f_dayofweek",
+        "f_is_weekend",
+        "f_is_night",
+        "f_hour_sin",
+        "f_hour_cos"
+      ],
+      "categorical": [
+        "event_type",
+        "event_subtype",
+        "protocol"
+      ]
+    },
+    "behaviour": {
+      "numeric": [
+        "duration_s",
+        "f_user_seq_no",
+        "f_user_secs_since_last",
+        "f_user_past_malicious_rate",
+        "f_user_new_country",
+        "f_device_seq_no",
+        "f_device_past_hisev_count",
+        "f_hour",
+        "f_dayofweek",
+        "f_is_weekend",
+        "f_is_night",
+        "f_hour_sin",
+        "f_hour_cos"
+      ],
+      "categorical": [
+        "event_type",
+        "event_subtype",
+        "country"
+      ]
+    },
+    "quantum": {
+      "numeric": [
+        "bytes_out",
+        "f_log1p_bytes_out",
+        "f_device_seq_no",
+        "q_cert_age_days",
+        "q_cert_validity_days",
+        "f_hour",
+        "f_dayofweek",
+        "f_is_weekend",
+        "f_is_night",
+        "f_hour_sin",
+        "f_hour_cos"
+      ],
+      "categorical": [
+        "event_subtype",
+        "country",
+        "q_key_exchange",
+        "q_cert_key_type",
+        "q_data_class"
+      ]
+    }
+  },
+  "stage_times_s": {
+    "load_split_s": 3.6,
+    "fraud_s": 4.8,
+    "cyber_s": 4.6,
+    "behaviour_s": 14.2,
+    "quantum_s": 2.0,
+    "fusion_s": 0.6
+  },
+  "total_s": 29.7
+}

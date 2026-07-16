@@ -11,3 +11,7 @@ pyarrow
 matplotlib
 pandas
 scikit-learn
+xgboost
+lightgbm
+shap
+joblib

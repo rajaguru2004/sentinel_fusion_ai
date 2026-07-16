@@ -1,0 +1,221 @@
+{
+  "rows_total": 2043664,
+  "fractions": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "rule": "per-source temporal quantile cut on (event_time, event_id) order",
+  "composition": {
+    "baf/test": {
+      "rows": 24120,
+      "positives": 2134,
+      "unlabeled": 0
+    },
+    "baf/train": {
+      "rows": 112560,
+      "positives": 7094,
+      "unlabeled": 0
+    },
+    "baf/val": {
+      "rows": 24120,
+      "positives": 1801,
+      "unlabeled": 0
+    },
+    "beth/test": {
+      "rows": 44967,
+      "positives": 0,
+      "unlabeled": 0
+    },
+    "beth/train": {
+      "rows": 209843,
+      "positives": 149940,
+      "unlabeled": 0
+    },
+    "beth/val": {
+      "rows": 44967,
+      "positives": 0,
+      "unlabeled": 0
+    },
+    "cert_insider/test": {
+      "rows": 22496,
+      "positives": 0,
+      "unlabeled": 22496
+    },
+    "cert_insider/train": {
+      "rows": 104979,
+      "positives": 0,
+      "unlabeled": 104979
+    },
+    "cert_insider/val": {
+      "rows": 22495,
+      "positives": 0,
+      "unlabeled": 22495
+    },
+    "cicids2017/test": {
+      "rows": 22480,
+      "positives": 22480,
+      "unlabeled": 0
+    },
+    "cicids2017/train": {
+      "rows": 104906,
+      "positives": 104906,
+      "unlabeled": 0
+    },
+    "cicids2017/val": {
+      "rows": 22480,
+      "positives": 22480,
+      "unlabeled": 0
+    },
+    "cisa_kev/test": {
+      "rows": 247,
+      "positives": 0,
+      "unlabeled": 247
+    },
+    "cisa_kev/train": {
+      "rows": 1150,
+      "positives": 0,
+      "unlabeled": 1150
+    },
+    "cisa_kev/val": {
+      "rows": 247,
+      "positives": 0,
+      "unlabeled": 247
+    },
+    "creditcard/test": {
+      "rows": 22591,
+      "positives": 52,
+      "unlabeled": 0
+    },
+    "creditcard/train": {
+      "rows": 105422,
+      "positives": 366,
+      "unlabeled": 0
+    },
+    "creditcard/val": {
+      "rows": 22591,
+      "positives": 55,
+      "unlabeled": 0
+    },
+    "feodo/test": {
+      "rows": 1,
+      "positives": 1,
+      "unlabeled": 0
+    },
+    "feodo/train": {
+      "rows": 3,
+      "positives": 3,
+      "unlabeled": 0
+    },
+    "feodo/val": {
+      "rows": 1,
+      "positives": 1,
+      "unlabeled": 0
+    },
+    "malicious_urls/test": {
+      "rows": 44949,
+      "positives": 22437,
+      "unlabeled": 0
+    },
+    "malicious_urls/train": {
+      "rows": 209759,
+      "positives": 104794,
+      "unlabeled": 0
+    },
+    "malicious_urls/val": {
+      "rows": 44948,
+      "positives": 22504,
+      "unlabeled": 0
+    },
+    "mitre_attack/test": {
+      "rows": 105,
+      "positives": 0,
+      "unlabeled": 105
+    },
+    "mitre_attack/train": {
+      "rows": 487,
+      "positives": 0,
+      "unlabeled": 487
+    },
+    "mitre_attack/val": {
+      "rows": 105,
+      "positives": 0,
+      "unlabeled": 105
+    },
+    "paysim/test": {
+      "rows": 23740,
+      "positives": 3981,
+      "unlabeled": 0
+    },
+    "paysim/train": {
+      "rows": 110785,
+      "positives": 3668,
+      "unlabeled": 0
+    },
+    "paysim/val": {
+      "rows": 23740,
+      "positives": 564,
+      "unlabeled": 0
+    },
+    "quantum_synth/test": {
+      "rows": 23321,
+      "positives": 823,
+      "unlabeled": 0
+    },
+    "quantum_synth/train": {
+      "rows": 108827,
+      "positives": 3800,
+      "unlabeled": 0
+    },
+    "quantum_synth/val": {
+      "rows": 23320,
+      "positives": 770,
+      "unlabeled": 0
+    },
+    "rba/test": {
+      "rows": 45098,
+      "positives": 25002,
+      "unlabeled": 0
+    },
+    "rba/train": {
+      "rows": 210453,
+      "positives": 102364,
+      "unlabeled": 0
+    },
+    "rba/val": {
+      "rows": 45097,
+      "positives": 22809,
+      "unlabeled": 0
+    },
+    "unsw_nb15/test": {
+      "rows": 21784,
+      "positives": 11965,
+      "unlabeled": 0
+    },
+    "unsw_nb15/train": {
+      "rows": 101655,
+      "positives": 41247,
+      "unlabeled": 0
+    },
+    "unsw_nb15/val": {
+      "rows": 21783,
+      "positives": 12045,
+      "unlabeled": 0
+    },
+    "urlhaus/test": {
+      "rows": 10657,
+      "positives": 10657,
+      "unlabeled": 0
+    },
+    "urlhaus/train": {
+      "rows": 49729,
+      "positives": 49729,
+      "unlabeled": 0
+    },
+    "urlhaus/val": {
+      "rows": 10656,
+      "positives": 10656,
+      "unlabeled": 0
+    }
+  }
+}

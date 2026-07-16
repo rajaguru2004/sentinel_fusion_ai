@@ -1,0 +1,64 @@
+{
+  "model": "fraud",
+  "library": "xgboost",
+  "rows": {
+    "train": 328767,
+    "val": 70451,
+    "test": 70451
+  },
+  "positive_rate_train": 0.0338,
+  "threshold_val_maxF1": 0.756222,
+  "test": {
+    "accuracy": 0.9141,
+    "precision": 0.5101,
+    "recall": 0.4855,
+    "f1": 0.4975,
+    "roc_auc": 0.838,
+    "confusion_matrix": {
+      "tn": 61408.0,
+      "fp": 2876.0,
+      "fn": 3173.0,
+      "tp": 2994.0
+    }
+  },
+  "test_population_weighted": {
+    "accuracy": 0.9368,
+    "precision": 0.0461,
+    "recall": 0.4855,
+    "f1": 0.0842,
+    "roc_auc": 0.8257,
+    "confusion_matrix": {
+      "tn": 962642.0963600893,
+      "fp": 61921.12821333486,
+      "fn": 3173.0,
+      "tp": 2994.0
+    }
+  },
+  "latency": {
+    "single_row_ms": {
+      "mean": 1.394,
+      "p50": 1.387,
+      "p95": 1.438
+    },
+    "batch_rows": 10000,
+    "batch_rows_per_sec": 1926123
+  },
+  "best_iteration": 175,
+  "shap_top_features": {
+    "amount": 1.10318,
+    "event_type": 0.47698,
+    "f_log1p_amount": 0.36547,
+    "duration_s": 0.29866,
+    "f_hour": 0.29109,
+    "f_dayofweek": 0.16508,
+    "f_hour_sin": 0.10826,
+    "f_hour_cos": 0.07254,
+    "f_user_seq_no": 0.05062,
+    "f_is_night": 0.01915,
+    "f_is_weekend": 0.01013,
+    "f_amount_ratio_mean": 0.0,
+    "f_user_past_malicious_rate": 0.0,
+    "f_user_secs_since_last": 0.0,
+    "f_amount_z_user": 0.0
+  }
+}

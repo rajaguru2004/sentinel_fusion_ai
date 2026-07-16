@@ -1,0 +1,63 @@
+{
+  "model": "behaviour",
+  "library": "isolation_forest",
+  "rows": {
+    "train": 315432,
+    "val": 45097,
+    "test": 45098
+  },
+  "positive_rate_train": 0.3245,
+  "threshold_val_maxF1": -0.0041,
+  "test": {
+    "accuracy": 0.6093,
+    "precision": 0.5879,
+    "recall": 0.9869,
+    "f1": 0.7369,
+    "roc_auc": 0.5843,
+    "confusion_matrix": {
+      "tn": 2803.0,
+      "fp": 17293.0,
+      "fn": 327.0,
+      "tp": 24675.0
+    }
+  },
+  "test_population_weighted": {
+    "accuracy": 0.7285,
+    "precision": 0.7233,
+    "recall": 0.9869,
+    "f1": 0.8348,
+    "roc_auc": 0.5843,
+    "confusion_matrix": {
+      "tn": 31586.74538666805,
+      "fp": 194873.2029866357,
+      "fn": 6751.549379999964,
+      "tp": 509463.24450012605
+    }
+  },
+  "latency": {
+    "single_row_ms": {
+      "mean": 14.12,
+      "p50": 13.956,
+      "p95": 15.327
+    },
+    "batch_rows": 10000,
+    "batch_rows_per_sec": 123993
+  },
+  "shap_top_features": {
+    "f_user_seq_no": 0.65173,
+    "f_device_seq_no": 0.61509,
+    "f_device_past_hisev_count": 0.57888,
+    "f_is_weekend": 0.3278,
+    "f_is_night": 0.27539,
+    "f_hour_cos": 0.17264,
+    "f_user_new_country": 0.15697,
+    "f_user_past_malicious_rate": 0.14304,
+    "f_dayofweek": 0.14216,
+    "f_hour": 0.11966,
+    "country": 0.09488,
+    "f_user_secs_since_last": 0.09194,
+    "event_subtype": 0.08402,
+    "f_hour_sin": 0.05997,
+    "event_type": 0.052
+  }
+}

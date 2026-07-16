@@ -1,0 +1,32 @@
+{
+  "weights": {
+    "fraud": 1.0,
+    "cyber": 1.0,
+    "behaviour": 0.7,
+    "quantum": 0.9
+  },
+  "calibration": "isotonic per model, fitted on validation",
+  "combiner": "weighted noisy-OR: 1 - prod(1 - w_i * p_i)",
+  "test_events_fused": 250597,
+  "cross_domain_roc_auc_labeled_test": 0.9579,
+  "risk_level_distribution": {
+    "low": 160104,
+    "medium": 52891,
+    "critical": 34456,
+    "high": 3146
+  },
+  "example_multi_signal": {
+    "input": {
+      "fraud": 0.92,
+      "behaviour": 0.1
+    },
+    "output": {
+      "risk_score": 0.6129,
+      "risk_level": "high",
+      "contributions": {
+        "fraud": 0.3615,
+        "behaviour": 0.3938
+      }
+    }
+  }
+}

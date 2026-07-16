@@ -1,0 +1,64 @@
+{
+  "model": "quantum",
+  "library": "xgboost",
+  "rows": {
+    "train": 108827,
+    "val": 23320,
+    "test": 23321
+  },
+  "positive_rate_train": 0.0349,
+  "threshold_val_maxF1": 0.964101,
+  "test": {
+    "accuracy": 0.9997,
+    "precision": 0.9916,
+    "recall": 1.0,
+    "f1": 0.9958,
+    "roc_auc": 1.0,
+    "confusion_matrix": {
+      "tn": 22491.0,
+      "fp": 7.0,
+      "fn": 0.0,
+      "tp": 823.0
+    }
+  },
+  "test_population_weighted": {
+    "accuracy": 0.9997,
+    "precision": 0.9863,
+    "recall": 1.0,
+    "f1": 0.9931,
+    "roc_auc": 1.0,
+    "confusion_matrix": {
+      "tn": 36676.373579986815,
+      "fp": 11.414993333333332,
+      "fn": 0.0,
+      "tp": 823.0
+    }
+  },
+  "latency": {
+    "single_row_ms": {
+      "mean": 1.48,
+      "p50": 1.392,
+      "p95": 1.58
+    },
+    "batch_rows": 10000,
+    "batch_rows_per_sec": 3021139
+  },
+  "best_iteration": 119,
+  "shap_top_features": {
+    "q_data_class": 4.24012,
+    "q_cert_key_type": 2.28059,
+    "bytes_out": 2.26947,
+    "event_subtype": 1.48609,
+    "q_key_exchange": 0.73574,
+    "f_log1p_bytes_out": 0.59176,
+    "q_cert_age_days": 0.0517,
+    "f_device_seq_no": 0.03187,
+    "country": 0.025,
+    "f_hour_cos": 0.02188,
+    "f_hour_sin": 0.01156,
+    "q_cert_validity_days": 0.01094,
+    "f_hour": 0.00897,
+    "f_dayofweek": 0.00567,
+    "f_is_night": 0.00403
+  }
+}

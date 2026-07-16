@@ -1,0 +1,21 @@
+{
+  "model": "fraud",
+  "sample_rows": 2000,
+  "mean_abs_shap_top15": {
+    "amount": 1.10318,
+    "event_type": 0.47698,
+    "f_log1p_amount": 0.36547,
+    "duration_s": 0.29866,
+    "f_hour": 0.29109,
+    "f_dayofweek": 0.16508,
+    "f_hour_sin": 0.10826,
+    "f_hour_cos": 0.07254,
+    "f_user_seq_no": 0.05062,
+    "f_is_night": 0.01915,
+    "f_is_weekend": 0.01013,
+    "f_amount_ratio_mean": 0.0,
+    "f_user_past_malicious_rate": 0.0,
+    "f_user_secs_since_last": 0.0,
+    "f_amount_z_user": 0.0
+  }
+}
