@@ -131,7 +131,46 @@ Reading guide:
 - Fraud is the hard problem (4.2% positives, three very different sources); population-cost threshold analysis (c_fn = 20×c_fp → t = 0.764) in `reports/ml/experiments/fraud_search.json`.
 - Calibration: isotonic beat Platt sigmoid on Brier for all four models; fusion weight refit gained only +0.0009 AUC — not adopted. Everything above is reproducible with seed 42.
 
-## 6. 🎬 The demo — what judges see
+## 6. Model requirements & specs
+
+**Per-model specifications** (all seed 42, thresholds chosen on validation, trees = early-stopped count actually used):
+
+| Model | Algorithm | Trees | Features | Threshold | Bundle | Native (pickle-free) |
+|---|---|---:|---:|---:|---:|---:|
+| Fraud Detection | XGBoost (hist) | 175 | 16 | 0.756 | 299 KB | `fraud_xgb.json` 1.1 MB |
+| Cyber Threat | LightGBM | 188 | 23 | 0.257 | 569 KB | `cyber_lgbm.txt` 1.3 MB |
+| Behaviour Analytics | LightGBM | 12 | 16 | 0.366 | 41 KB | `behaviour_lgbm.txt` 86 KB |
+| Quantum Risk | XGBoost (hist) | 119 | 16 | 0.964 | 89 KB | `quantum_xgb.json` 306 KB |
+| Risk Fusion Engine | isotonic + noisy-OR | — | 4 signals | bands .25/.50/.75 | 3 KB | — |
+
+**Every bundle is self-contained** for inference: model + ordered feature list + categorical encoder (JSON vocab, unseen→−1) + imputation medians + decision threshold + seed. Native XGB/LGBM files score byte-identically to the bundles (parity-tested to 1e-6) — a no-pickle deployment path.
+
+**Hardware requirements:**
+
+| | Training (full retrain) | Inference (demo / scoring) |
+|---|---|---|
+| CPU | any x86-64/ARM, 4+ cores recommended | any single core suffices |
+| GPU | **none needed** | **none needed** |
+| RAM | ~2 GB peak (2.04M rows, column-pruned load) | ~0.5 GB incl. SHAP + threat-intel DB |
+| Disk | ~2.6 GB unified parquet + <5 MB models | <5 MB artifacts + 60 MB engineered corpus optional |
+| Time | ~30 s full retrain (12-core laptop) | ~2.5 s cold start, ~1 ms/event, ~90 ms full 5-event incident incl. live SHAP |
+
+**Software stack** (pinned by `pip freeze`; minimums in `pyproject.toml`):
+
+| Component | Version | Role |
+|---|---|---|
+| Python | 3.12 | runtime |
+| pandas / numpy / pyarrow | 3.0.3 / 2.4.6 / 25.0 | data layer |
+| scikit-learn | 1.9.0 | IsolationForest, isotonic calibration, metrics |
+| XGBoost | 3.3.0 | fraud + quantum models |
+| LightGBM | 4.6.0 | cyber + behaviour models |
+| SHAP | 0.52.0 | live explainability |
+| rich | 15.0 | terminal demo UI only |
+| pytest / ruff | dev-only | 99-test suite, lint |
+
+No cloud services, no GPU, no external APIs at inference time — everything runs offline on a laptop, which is exactly how the demo ships.
+
+## 7. 🎬 The demo — what judges see
 
 Interactive menu, plain language, zero jargon required:
 
