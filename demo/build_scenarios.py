@@ -70,8 +70,19 @@ def main() -> None:
                  any_split=True)
     exfil = _pick(df, split, lab1 & (df["source_dataset"].isin(["unsw_nb15", "cicids2017"])),
                   "bytes_out")
-    wire = _pick(df, split, lab1 & (df["event_domain"] == "financial")
-                 & df["amount"].notna(), "f_amount_z_user")
+    # wire slot: among real fraud positives, take the one the deployed model
+    # scores HIGHEST (true-positive showcase — still a genuine test-split row)
+    import joblib
+
+    from ml.config import MODELS
+    from ml.features import CategoryEncoder, build_matrix
+    b = joblib.load(MODELS / "fraud_bundle.joblib")
+    cand = df[(split == "test") & lab1 & (df["event_domain"] == "financial")
+              & df["amount"].notna() & (df["amount"] > 1000)]
+    Xc, _ = build_matrix(cand, "fraud", CategoryEncoder(b["encoder_mapping"]))
+    scores = b["model"].predict_proba(Xc[b["features"]])[:, 1]
+    wire = cand.iloc[int(scores.argmax())]
+    print(f"wire slot: fraud p={scores.max():.3f} amount={wire['amount']:.0f}")
     hndl = _pick(df, split, lab1 & (df["event_domain"] == "quantum"), "bytes_out")
 
     story = [

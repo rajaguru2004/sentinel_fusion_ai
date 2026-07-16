@@ -1,4 +1,18 @@
-# Sentinel Fusion AI — Baseline Model Report (Phase 2)
+# Sentinel Fusion AI — Model Report
+
+> **Phase 3 update (2026-07-16).** Behaviour model **promoted**: supervised
+> LightGBM on labeled rba slice replaces IsolationForest — test ROC-AUC
+> **0.584 → 0.817**, F1 0.737 → 0.829, 20× faster single-row; fusion
+> cross-domain AUC **0.958 → 0.972** (gate: `ml.benchmark --challenger`,
+> +0.286 val / +0.232 test). Fraud 24-config search: challenger lost on test
+> PR-AUC (0.526 < 0.536) — baseline stands; population-cost threshold 0.764
+> (c_fn=20·c_fp) documented in `experiments/fraud_search.json`. Calibration:
+> isotonic beats sigmoid on Brier for all four; fusion weight refit +0.0009
+> AUC — not adopted. Test suite: 99 tests; regression gate:
+> `python -m ml.benchmark --check`. Rollback: `BEHAVIOUR_MODEL = "iforest"`
+> in `ml/config.py`. Terminal SOC demo: `python sentinel_demo.py`.
+
+## Phase 2 baseline report (historical)
 
 Pipeline: `python -m ml.run_pipeline` (~30 s end-to-end, CPU-only, seed 42, no hyperparameter search — deliberate baselines).
 

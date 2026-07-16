@@ -1,9 +1,13 @@
 import numpy as np
 import pytest
 
-from ml.evaluate import (brier_score, compute_metrics,
-                         expected_calibration_error, pick_threshold,
-                         pick_threshold_cost)
+from ml.evaluate import (
+    brier_score,
+    compute_metrics,
+    expected_calibration_error,
+    pick_threshold,
+    pick_threshold_cost,
+)
 
 
 def test_pick_threshold_maximizes_f1_on_toy():

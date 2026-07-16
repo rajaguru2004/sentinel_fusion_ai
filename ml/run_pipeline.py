@@ -24,6 +24,7 @@ import time
 
 import joblib
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,9 +33,18 @@ import pandas as pd
 from . import data as D
 from . import features as F
 from . import train as T
-from .config import (BEHAVIOUR_MODEL, FAST_PARAMS, FEATURES, FUSION_WEIGHTS,
-                     IFOREST_PARAMS, LGBM_PARAMS, ML_REPORTS, MODELS, SEED,
-                     XGB_PARAMS)
+from .config import (
+    BEHAVIOUR_MODEL,
+    FAST_PARAMS,
+    FEATURES,
+    FUSION_WEIGHTS,
+    IFOREST_PARAMS,
+    LGBM_PARAMS,
+    ML_REPORTS,
+    MODELS,
+    SEED,
+    XGB_PARAMS,
+)
 from .evaluate import compute_metrics, latency_benchmark, pick_threshold
 from .fusion import RiskFusionEngine
 
@@ -136,7 +146,8 @@ def _reference_stats(per_model_Xtr: dict[str, pd.DataFrame],
             if len(col) == 0:
                 continue
             edges = np.unique(np.quantile(col, qs))
-            hist, _ = np.histogram(col, bins=edges) if len(edges) > 1 else (np.array([len(col)]), None)
+            hist = (np.histogram(col, bins=edges)[0] if len(edges) > 1
+                    else np.array([len(col)]))
             freq = hist / max(hist.sum(), 1)
             feats[c] = {"edges": [float(e) for e in edges],
                         "freq": [round(float(f), 6) for f in freq]}
@@ -223,7 +234,9 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
         json.dumps(_reference_stats(per_model_Xtr, val_scores), indent=2))
 
     # ----------------------------------------------------------- manifest ----
-    import lightgbm, sklearn, xgboost
+    import lightgbm
+    import sklearn
+    import xgboost
     run_manifest = {
         "seed": SEED,
         "data": {"file": str(D.ENGINEERED_PARQUET.name), "rows": manifest["rows_total"],

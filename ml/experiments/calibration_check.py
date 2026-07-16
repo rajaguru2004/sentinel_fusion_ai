@@ -15,12 +15,12 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
+from .. import data as D
 from ..config import FUSION_WEIGHTS, MODELS, SEED
 from ..evaluate import brier_score, expected_calibration_error
 from ..features import CategoryEncoder, build_matrix, impute
 from ..train import score
 from .common import corpus, save_report
-from .. import data as D
 
 
 def _val_scores(key: str, df, split):
@@ -78,8 +78,8 @@ def main() -> None:
     auc_before = roc_auc_score(y_all, w0[k_idx] * p_all)
     auc_after = roc_auc_score(y_all, res.x[k_idx] * p_all)
     report["fusion_weight_refit"] = {
-        "current": dict(zip(keys, [round(float(v), 3) for v in w0])),
-        "refit": dict(zip(keys, [round(float(v), 3) for v in res.x])),
+        "current": dict(zip(keys, [round(float(v), 3) for v in w0], strict=True)),
+        "refit": dict(zip(keys, [round(float(v), 3) for v in res.x], strict=True)),
         "val_auc_current": round(float(auc_before), 4),
         "val_auc_refit": round(float(auc_after), 4),
         "adopt": bool(auc_after - auc_before >= 0.003),

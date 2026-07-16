@@ -42,4 +42,6 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B"]
-ignore = ["E402"]  # matplotlib.use("Agg") before pyplot import is intentional
+# E402: matplotlib.use("Agg") before pyplot import is intentional
+# E702: compact `plt.x(); plt.y()` plotting idiom used across the repo
+ignore = ["E402", "E702"]

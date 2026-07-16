@@ -20,7 +20,6 @@ from __future__ import annotations
 import numpy as np
 
 from ..config import SEED
-from ..evaluate import pick_threshold
 from ..features import fit_imputer, impute
 from ..train import score, train_iforest, train_lgbm
 from .common import eval_scores, save_report, slices, timed, write_challenger

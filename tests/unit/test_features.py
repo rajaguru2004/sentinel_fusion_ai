@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from ml.config import FEATURES
-from ml.features import CategoryEncoder, build_matrix, fit_imputer, impute
+from ml.features import build_matrix, fit_imputer, impute
 
 
 def test_medians_and_allnan_column():

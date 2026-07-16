@@ -13,8 +13,15 @@ import json
 import numpy as np
 import pandas as pd
 
-from .config import (ENGINEERED_PARQUET, FEATURES, QUANTUM_PART_PARQUET,
-                     TRAIN_FRAC, VAL_FRAC, DOMAIN_OF_MODEL, ML_REPORTS)
+from .config import (
+    DOMAIN_OF_MODEL,
+    ENGINEERED_PARQUET,
+    FEATURES,
+    ML_REPORTS,
+    QUANTUM_PART_PARQUET,
+    TRAIN_FRAC,
+    VAL_FRAC,
+)
 
 QUANTUM_ATTRS = ["key_exchange", "cert_key_type", "data_class",
                  "cert_age_days", "cert_validity_days"]
