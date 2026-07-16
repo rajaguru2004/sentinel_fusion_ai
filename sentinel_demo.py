@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """Sentinel Fusion AI — terminal SOC demonstration.
 
-    python sentinel_demo.py                     # account-takeover attack story
-    python sentinel_demo.py --scenario benign   # routine transaction
-    python sentinel_demo.py --all               # both, back to back
+    python sentinel_demo.py                     # interactive menu (default)
+    python sentinel_demo.py --scenario attack   # classic auto-run, attack story
+    python sentinel_demo.py --scenario benign   # classic auto-run, normal event
+    python sentinel_demo.py --all               # classic auto-run, both
     python sentinel_demo.py --fast              # no dramatic pauses
 
 Real trained models, real Risk Fusion Engine, live SHAP, real threat-intel
@@ -18,6 +19,7 @@ from rich.console import Console
 
 from demo import render
 from demo.engine import DemoEngine
+from demo.interactive import main_menu
 
 
 def run_scenario(console: Console, engine: DemoEngine, name: str) -> None:
@@ -39,8 +41,10 @@ def run_scenario(console: Console, engine: DemoEngine, name: str) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Sentinel Fusion AI terminal demo")
-    ap.add_argument("--scenario", choices=["attack", "benign"], default="attack")
-    ap.add_argument("--all", action="store_true", help="run every scenario")
+    ap.add_argument("--scenario", choices=["attack", "benign"],
+                    help="classic auto-run of one story (skips the menu)")
+    ap.add_argument("--all", action="store_true",
+                    help="classic auto-run of every story (skips the menu)")
     ap.add_argument("--fast", action="store_true", help="skip dramatic pauses")
     ap.add_argument("--no-color", action="store_true")
     args = ap.parse_args()
@@ -52,8 +56,11 @@ def main() -> None:
     engine = DemoEngine()
     render.loading(console, engine)
 
-    for name in (["attack", "benign"] if args.all else [args.scenario]):
-        run_scenario(console, engine, name)
+    if args.all or args.scenario:
+        for name in (["attack", "benign"] if args.all else [args.scenario]):
+            run_scenario(console, engine, name)
+    else:
+        main_menu(console, engine)
 
 
 if __name__ == "__main__":

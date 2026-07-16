@@ -8,15 +8,34 @@ Trained on a unified corpus of **2,043,664 events** from 14 public datasets acro
 
 ## 🎬 Demo — run this
 
-Terminal SOC demonstration: a 5-event account-takeover → exfiltration → wire-fraud attack unfolding in real time, analyzed live by the real trained models.
+Interactive terminal experience: pick what to see from a menu, follow it in plain language — no jargon needed to understand what the AI is doing.
 
 ```bash
 # one-time setup (see Setup below), then:
-.venv/bin/python sentinel_demo.py              # full attack story, dramatic pacing
-.venv/bin/python sentinel_demo.py --all        # attack + benign contrast, back to back
-.venv/bin/python sentinel_demo.py --scenario benign
-.venv/bin/python sentinel_demo.py --fast       # no pauses (rehearsal/CI)
-.venv/bin/python sentinel_demo.py --no-color   # plain terminal
+.venv/bin/python sentinel_demo.py              # interactive menu (default)
+```
+
+```
+What would you like to see?
+ 1  🚨  Watch a live attack get caught
+ 2  ✅  Watch a normal customer sail through
+ 3  🧠  Meet the AI team — who watches what
+ 4  🔍  Step through the attack, one event at a time
+ 5  📊  Report card — how good is this AI really?
+ 6  🚪  Exit
+```
+
+- **1 / 2** — the full SOC story, auto-played: a 5-event account-takeover → data-theft → wire-fraud attack (or a routine payment) analyzed live end to end.
+- **3** — the four models introduced as plain-language specialists: the Money Watcher 💳, the Intrusion Watcher 🖥️, the Habits Watcher 👤, the Future-Proofing Watcher 🔐 — plus the Command Center that fuses their opinions.
+- **4** — presenter mode: press Enter to advance one event at a time; each shows *what happened*, a 0–100 suspicion meter, the verdict, decision time, and **why in human sentences** ("This transfer is far outside this customer's normal range", "destination = known QakBot criminal server") — every sentence derived from a real model attribution or a real threat-feed hit.
+- **5** — model quality as a plain report card ("catches 95 of every 100 real cases; when it raises an alarm it's right 96 times out of 100"), read straight from the saved test metrics.
+
+Classic non-interactive runs (recordings, CI):
+
+```bash
+.venv/bin/python sentinel_demo.py --all              # attack + benign, auto-played
+.venv/bin/python sentinel_demo.py --scenario attack  # one story
+.venv/bin/python sentinel_demo.py --fast --no-color  # no pauses, plain terminal
 ```
 
 What the demo shows, stage by stage:

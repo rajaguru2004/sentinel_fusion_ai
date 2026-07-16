@@ -152,8 +152,9 @@ def fusion(console: Console, incident: IncidentResult) -> None:
     diagram = Text.from_markup(
         f"[bold]{inputs}[/bold]\n"
         f"{' ' * 20}│\n"
-        f"{' ' * 12}▼  calibration (isotonic) + weighted noisy-OR\n"
-        f"{' ' * 12}[bold]risk = 1 − Π(1 − wᵢ·pᵢ)[/bold]\n"
+        f"{' ' * 12}▼  four expert opinions, tuned and combined —\n"
+        f"{' ' * 12}   one loud alarm is enough; quiet worries add up\n"
+        f"{' ' * 12}[dim]risk = 1 − Π(1 − wᵢ·pᵢ)  (calibrated, weighted noisy-OR)[/dim]\n"
         f"{' ' * 20}│\n"
         f"{' ' * 12}▼\n"
         f"{' ' * 6}UNIFIED THREAT SCORE: [{lvl_style}]{fused['risk_score']:.4f}"
@@ -190,7 +191,8 @@ def explainability(console: Console, incident: IncidentResult) -> None:
         t.add_row(str(i), f"[bold]{f['label']}[/bold]", f["model"], arrow,
                   f"{bar} {f['pct']:.0f}%")
     console.print(t)
-    console.print("  [dim]SHAP TreeExplainer, computed live on this event[/dim]\n")
+    console.print("  [dim]computed live on this event by the AI explanation "
+                  "engine (SHAP)[/dim]\n")
 
 
 def threat_intel(console: Console, incident: IncidentResult) -> None:
