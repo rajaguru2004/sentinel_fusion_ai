@@ -36,28 +36,28 @@
   },
   "latency": {
     "single_row_ms": {
-      "mean": 0.972,
-      "p50": 0.84,
-      "p95": 1.757
+      "mean": 0.795,
+      "p50": 0.789,
+      "p95": 0.833
     },
     "batch_rows": 10000,
-    "batch_rows_per_sec": 1516726
+    "batch_rows_per_sec": 1943720
   },
   "best_iteration": 188,
   "shap_top_features": {
     "f_device_past_hisev_count": 4.37078,
     "dst_port": 2.93236,
     "f_user_past_malicious_rate": 2.32095,
-    "duration_s": 0.79577,
-    "f_bytes_ratio": 0.57411,
-    "bytes_out": 0.49996,
-    "f_hour": 0.48856,
-    "f_log1p_bytes_in": 0.4461,
+    "duration_s": 0.77771,
+    "f_bytes_ratio": 0.61791,
+    "bytes_out": 0.49926,
+    "f_hour": 0.49036,
+    "f_log1p_bytes_in": 0.44586,
     "f_user_seq_no": 0.4097,
     "f_user_secs_since_last": 0.25021,
-    "f_log1p_bytes_out": 0.23272,
+    "f_log1p_bytes_out": 0.2319,
     "f_device_seq_no": 0.22501,
-    "f_dayofweek": 0.11991,
+    "f_dayofweek": 0.15461,
     "event_subtype": 0.10945,
     "protocol": 0.10271
   }

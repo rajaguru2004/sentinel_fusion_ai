@@ -70,6 +70,13 @@ FEATURES: dict[str, dict[str, list[str]]] = {
 DOMAIN_OF_MODEL = {"fraud": "financial", "cyber": "cyber",
                    "behaviour": "behaviour", "quantum": "quantum"}
 
+# Behaviour model kind. "lgbm_supervised" promoted 2026-07-16 via
+# ml.benchmark --challenger: val ROC-AUC 0.8514 vs IsolationForest 0.5843
+# (+0.286), test +0.232, 20x faster single-row. Trains on the LABELED
+# behaviour slice (rba); unlabeled cert_insider rows are still scored.
+# Rollback: set to "iforest".
+BEHAVIOUR_MODEL = "lgbm_supervised"
+
 # ------------------------------------------------------------ model params ----
 # CPU baselines. hist method, moderate depth/estimators. No tuning by design.
 XGB_PARAMS = dict(

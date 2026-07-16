@@ -1,0 +1,86 @@
+{
+  "incumbent_val_roc_auc": 0.5843,
+  "ranking": [
+    {
+      "name": "lgbm_supervised",
+      "val": {
+        "roc_auc": 0.8514,
+        "pr_auc": 0.7945
+      },
+      "fit_s": 0.4,
+      "test": {
+        "roc_auc": 0.8167,
+        "pr_auc": 0.7922
+      }
+    },
+    {
+      "name": "ecod_lite",
+      "val": {
+        "roc_auc": 0.7393,
+        "pr_auc": 0.6932
+      },
+      "fit_s": 0.0
+    },
+    {
+      "name": "lof_50k",
+      "val": {
+        "roc_auc": 0.6137,
+        "pr_auc": 0.597
+      },
+      "fit_s": 1.2
+    },
+    {
+      "name": "iforest_ms256_ne500",
+      "val": {
+        "roc_auc": 0.5699,
+        "pr_auc": 0.5495
+      },
+      "fit_s": 1.1
+    },
+    {
+      "name": "iforest_ms1024_ne300",
+      "val": {
+        "roc_auc": 0.5678,
+        "pr_auc": 0.5405
+      },
+      "fit_s": 1.1
+    },
+    {
+      "name": "iforest_ms4096_ne500",
+      "val": {
+        "roc_auc": 0.5653,
+        "pr_auc": 0.5413
+      },
+      "fit_s": 3.3
+    },
+    {
+      "name": "iforest_ms256_ne300",
+      "val": {
+        "roc_auc": 0.5651,
+        "pr_auc": 0.5464
+      },
+      "fit_s": 0.7
+    },
+    {
+      "name": "iforest_ms4096_ne300",
+      "val": {
+        "roc_auc": 0.5612,
+        "pr_auc": 0.5389
+      },
+      "fit_s": 1.9
+    },
+    {
+      "name": "iforest_ms1024_ne500",
+      "val": {
+        "roc_auc": 0.5583,
+        "pr_auc": 0.536
+      },
+      "fit_s": 1.7
+    }
+  ],
+  "champion": "lgbm_supervised",
+  "champion_beats_incumbent_by": 0.2671,
+  "promoted_to_challenger": true,
+  "challenger_bundle": "/home/suryaguru/StudioProjects/sentinel_fusion_ai/models/challengers/behaviour_challenger.joblib",
+  "note": "supervised candidate trains on rba labels only; cert_insider (unlabeled) rows still scored, quality there unmeasured \u2014 sequence model is the phase-4 answer for insider risk"
+}

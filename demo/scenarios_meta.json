@@ -1,0 +1,51 @@
+{
+  "attack": {
+    "title": "Account takeover with data exfiltration and wire fraud",
+    "user": "ACC-778341",
+    "device": "DEV-MACBOOK-7741",
+    "c2": {
+      "ip": "50.16.16.211",
+      "malware": "QakBot",
+      "asn": "AMAZON-AES",
+      "country": "US"
+    },
+    "events": [
+      {
+        "event_id": "INC-2026-0716-01",
+        "headline": "Login from new country (VPN exit node)",
+        "time": "09:01"
+      },
+      {
+        "event_id": "INC-2026-0716-02",
+        "headline": "PowerShell security-file access on user device",
+        "time": "09:03"
+      },
+      {
+        "event_id": "INC-2026-0716-03",
+        "headline": "Bulk outbound network transfer to C2",
+        "time": "09:05"
+      },
+      {
+        "event_id": "INC-2026-0716-04",
+        "headline": "High-value transfer to new beneficiary",
+        "time": "09:07"
+      },
+      {
+        "event_id": "INC-2026-0716-05",
+        "headline": "Bulk TLS upload on quantum-breakable channel",
+        "time": "09:08"
+      }
+    ]
+  },
+  "benign": {
+    "title": "Routine card payment",
+    "user": "ACC-102455",
+    "events": [
+      {
+        "event_id": "TXN-2026-0716-OK",
+        "headline": "Everyday card transaction",
+        "time": "12:01"
+      }
+    ]
+  }
+}

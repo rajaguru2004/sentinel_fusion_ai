@@ -144,12 +144,12 @@
     }
   },
   "stage_times_s": {
-    "load_split_s": 3.9,
-    "fraud_s": 6.5,
-    "cyber_s": 5.4,
-    "behaviour_s": 15.0,
-    "quantum_s": 1.9,
+    "load_split_s": 3.5,
+    "fraud_s": 5.2,
+    "cyber_s": 4.4,
+    "behaviour_s": 1.7,
+    "quantum_s": 2.0,
     "fusion_s": 0.6
   },
-  "total_s": 33.6
+  "total_s": 17.6
 }

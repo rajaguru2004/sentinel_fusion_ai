@@ -8,12 +8,12 @@
   "calibration": "isotonic per model, fitted on validation",
   "combiner": "weighted noisy-OR: 1 - prod(1 - w_i * p_i)",
   "test_events_fused": 250597,
-  "cross_domain_roc_auc_labeled_test": 0.9579,
+  "cross_domain_roc_auc_labeled_test": 0.9717,
   "risk_level_distribution": {
-    "low": 160104,
-    "medium": 52888,
+    "low": 177199,
     "critical": 34456,
-    "high": 3149
+    "high": 31181,
+    "medium": 7761
   },
   "example_multi_signal": {
     "input": {
@@ -21,11 +21,11 @@
       "behaviour": 0.1
     },
     "output": {
-      "risk_score": 0.6129,
-      "risk_level": "high",
+      "risk_score": 0.3615,
+      "risk_level": "medium",
       "contributions": {
         "fraud": 0.3615,
-        "behaviour": 0.3938
+        "behaviour": 0.0
       }
     }
   }

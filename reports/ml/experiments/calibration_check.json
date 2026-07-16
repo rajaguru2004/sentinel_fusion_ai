@@ -1,0 +1,65 @@
+{
+  "models": {
+    "fraud": {
+      "isotonic": {
+        "brier": 0.029,
+        "ece": 0.0
+      },
+      "sigmoid": {
+        "brier": 0.02967,
+        "ece": 0.00321
+      },
+      "winner": "isotonic"
+    },
+    "cyber": {
+      "isotonic": {
+        "brier": 0.01904,
+        "ece": 0.0
+      },
+      "sigmoid": {
+        "brier": 0.02208,
+        "ece": 0.01476
+      },
+      "winner": "isotonic"
+    },
+    "behaviour": {
+      "isotonic": {
+        "brier": 0.13801,
+        "ece": 0.0
+      },
+      "sigmoid": {
+        "brier": 0.14486,
+        "ece": 0.04415
+      },
+      "winner": "isotonic"
+    },
+    "quantum": {
+      "isotonic": {
+        "brier": 0.00013,
+        "ece": 5e-05
+      },
+      "sigmoid": {
+        "brier": 0.00018,
+        "ece": 0.00099
+      },
+      "winner": "isotonic"
+    }
+  },
+  "fusion_weight_refit": {
+    "current": {
+      "fraud": 1.0,
+      "cyber": 1.0,
+      "behaviour": 0.7,
+      "quantum": 0.9
+    },
+    "refit": {
+      "fraud": 1.0,
+      "cyber": 1.0,
+      "behaviour": 1.0,
+      "quantum": 1.0
+    },
+    "val_auc_current": 0.9812,
+    "val_auc_refit": 0.9821,
+    "adopt": false
+  }
+}

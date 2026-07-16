@@ -32,13 +32,16 @@ import pandas as pd
 from . import data as D
 from . import features as F
 from . import train as T
-from .config import (FAST_PARAMS, FEATURES, FUSION_WEIGHTS, IFOREST_PARAMS,
-                     LGBM_PARAMS, ML_REPORTS, MODELS, SEED, XGB_PARAMS)
+from .config import (BEHAVIOUR_MODEL, FAST_PARAMS, FEATURES, FUSION_WEIGHTS,
+                     IFOREST_PARAMS, LGBM_PARAMS, ML_REPORTS, MODELS, SEED,
+                     XGB_PARAMS)
 from .evaluate import compute_metrics, latency_benchmark, pick_threshold
 from .fusion import RiskFusionEngine
 
 MODEL_LIB = {"fraud": "xgboost", "cyber": "lightgbm",
-             "behaviour": "isolation_forest", "quantum": "xgboost"}
+             "behaviour": ("lightgbm" if BEHAVIOUR_MODEL == "lgbm_supervised"
+                           else "isolation_forest"),
+             "quantum": "xgboost"}
 
 
 def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
@@ -47,7 +50,9 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
               params: dict | None = None) -> dict:
     """Train + evaluate + serialize ONE model. Returns
     {bundle, metrics, s_va, y_va, test_index, test_scores, X_tr}."""
-    supervised = key != "behaviour"
+    # behaviour: LGBM champion trains supervised on the labeled slice (rba);
+    # IsolationForest (rollback kind) fits unsupervised on ALL behaviour rows.
+    supervised = key != "behaviour" or BEHAVIOUR_MODEL == "lgbm_supervised"
     tr = D.domain_slice(df, split, key, "train", labeled_only=supervised)
     va = D.domain_slice(df, split, key, "val", labeled_only=True)
     te = D.domain_slice(df, split, key, "test", labeled_only=True)
@@ -65,11 +70,11 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
     over = {**(fast_over if fast else {}), **(params or {})}
 
     medians = None
-    if key == "behaviour":
+    if key == "behaviour" and lib == "isolation_forest":
         medians = F.fit_imputer(X_tr)
         X_tr, X_va, X_te = (F.impute(x, medians) for x in (X_tr, X_va, X_te))
         model = T.train_iforest(X_tr, over)
-    elif key == "cyber":
+    elif lib == "lightgbm":
         model = T.train_lgbm(X_tr, y_tr, X_va, y_va, over)
     else:
         model = T.train_xgb(X_tr, y_tr, X_va, y_va, over)
@@ -142,7 +147,7 @@ def _reference_stats(per_model_Xtr: dict[str, pd.DataFrame],
 
 
 def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REPORTS,
-        fast: bool = False, skip_shap: bool = False, register: bool = False) -> dict:
+        fast: bool = False, skip_shap: bool = False) -> dict:
     np.random.seed(SEED)
     t0 = time.perf_counter()
     stage_times: dict[str, float] = {}
@@ -238,11 +243,6 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
     (reports_dir / "run_manifest.json").write_text(json.dumps(run_manifest, indent=2))
     (reports_dir / "metrics_all.json").write_text(json.dumps(all_metrics, indent=2))
 
-    if register:
-        from .registry import write_version
-        v = write_version(models_dir, all_metrics)
-        print(f"registered version {v}")
-
     print(f"== done in {run_manifest['total_s']}s ==")
     return all_metrics
 
@@ -252,6 +252,5 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--fast", action="store_true", help="tiny models (smoke/test)")
     ap.add_argument("--skip-shap", action="store_true")
-    ap.add_argument("--register", action="store_true", help="write registry version")
     a = ap.parse_args()
-    run(fast=a.fast, skip_shap=a.skip_shap, register=a.register)
+    run(fast=a.fast, skip_shap=a.skip_shap)
