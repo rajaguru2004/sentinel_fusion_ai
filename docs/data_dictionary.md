@@ -44,6 +44,15 @@ See [unified_schema.md](unified_schema.md). 24 columns; per-dataset native detai
 
 All flagged `time_is_synthetic=True`. Cross-dataset temporal correlation only valid on real-timestamp sources.
 
+## Resource-constrained training target
+
+Deployment target: model must run **< 1 GB VRAM**. Consequences for the data pipeline:
+
+- `unified_events.parquet` — full research corpus (all rows).
+- `unified_events_compact.parquet` — training corpus: ALL malicious/context rows + benign capped at 300k/dataset, `sampling_weight` column restores population ratios.
+- `unified_events_engineered.parquet` — compact corpus + interpretable engineered features; this is the intended training input.
+- Feature set kept small (18 features) and tabular → suits gradient-boosted trees (CPU/no VRAM) or a compact MLP/embedding model well under 1 GB.
+
 ## Known quality issues (kept, documented)
 
 - CICIDS2017: `Flow Bytes/s`, `Flow Packets/s` inf artifacts → median-imputed; negative durations dropped.

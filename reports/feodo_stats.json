@@ -1,0 +1,28 @@
+{
+  "dataset": "feodo",
+  "rows": 5,
+  "columns": 10,
+  "memory_mb": 0.0,
+  "duplicate_rows": 0,
+  "missing_by_column": {
+    "hostname": 2
+  },
+  "dtypes": {
+    "ip_address": "str",
+    "port": "int64",
+    "status": "str",
+    "hostname": "str",
+    "as_number": "int64",
+    "as_name": "str",
+    "country": "str",
+    "first_seen": "datetime64[us, UTC]",
+    "last_online": "str",
+    "malware": "str"
+  },
+  "notes": "Live C2 blocklist; all rows malicious.",
+  "label_distribution": {
+    "QakBot": 4,
+    "Emotet": 1
+  },
+  "imbalance_ratio": 4.0
+}

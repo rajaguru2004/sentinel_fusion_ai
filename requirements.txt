@@ -7,3 +7,7 @@ notebook
 ipykernel
 kaggle
 python-dotenv
+pyarrow
+matplotlib
+pandas
+scikit-learn

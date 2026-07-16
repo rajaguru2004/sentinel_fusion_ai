@@ -1,0 +1,36 @@
+{
+  "dataset": "rba",
+  "rows": 4787377,
+  "columns": 17,
+  "memory_mb": 463.2,
+  "duplicate_rows": 0,
+  "missing_by_column": {
+    "region": 3219,
+    "city": 1054
+  },
+  "dtypes": {
+    "index": "int64",
+    "user_id": "int64",
+    "rtt_ms": "float64",
+    "ip_address": "str",
+    "country": "category",
+    "region": "str",
+    "city": "str",
+    "asn": "int64",
+    "browser_name_and_version": "category",
+    "os_name_and_version": "category",
+    "device_type": "category",
+    "login_successful": "bool",
+    "is_attack_ip": "bool",
+    "is_account_takeover": "bool",
+    "rtt_ms_missing": "int8",
+    "event_time": "datetime64[us, UTC]",
+    "label_bin": "int8"
+  },
+  "notes": "Stratified sample: all attack/ATO + 6% benign of ~33M rows. Real timestamps.",
+  "label_distribution": {
+    "1": 3097041,
+    "0": 1690336
+  },
+  "imbalance_ratio": 1.83
+}

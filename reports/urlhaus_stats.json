@@ -1,0 +1,26 @@
+{
+  "dataset": "urlhaus",
+  "rows": 71042,
+  "columns": 9,
+  "memory_mb": 16.3,
+  "duplicate_rows": 0,
+  "missing_by_column": {
+    "last_online": 11665,
+    "tags": 4165
+  },
+  "dtypes": {
+    "id": "int64",
+    "dateadded": "datetime64[us, UTC]",
+    "url": "str",
+    "url_status": "str",
+    "last_online": "str",
+    "threat": "str",
+    "tags": "str",
+    "urlhaus_link": "str",
+    "reporter": "str"
+  },
+  "notes": "Live abuse.ch dump; all rows malicious IOCs.",
+  "label_distribution": {
+    "malware_download": 71042
+  }
+}

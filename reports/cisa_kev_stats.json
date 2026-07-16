@@ -1,0 +1,24 @@
+{
+  "dataset": "cisa_kev",
+  "rows": 1644,
+  "columns": 11,
+  "memory_mb": 1.0,
+  "duplicate_rows": 0,
+  "missing_by_column": {
+    "cwes": 171
+  },
+  "dtypes": {
+    "cveID": "str",
+    "vendorProject": "str",
+    "product": "str",
+    "vulnerabilityName": "str",
+    "dateAdded": "datetime64[us, UTC]",
+    "shortDescription": "str",
+    "requiredAction": "str",
+    "dueDate": "str",
+    "knownRansomwareCampaignUse": "str",
+    "notes": "str",
+    "cwes": "str"
+  },
+  "notes": "Authoritative exploited-CVE catalog; context rows label=-1."
+}

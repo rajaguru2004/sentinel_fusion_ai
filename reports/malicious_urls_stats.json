@@ -1,0 +1,22 @@
+{
+  "dataset": "malicious_urls",
+  "rows": 641119,
+  "columns": 4,
+  "memory_mb": 59.0,
+  "duplicate_rows": 0,
+  "missing_by_column": {},
+  "dtypes": {
+    "url": "str",
+    "type": "str",
+    "label_bin": "int8",
+    "event_time": "datetime64[ns, UTC]"
+  },
+  "notes": "651k labeled URLs incl. benign class; synthetic times.",
+  "label_distribution": {
+    "benign": 428080,
+    "defacement": 95308,
+    "phishing": 94086,
+    "malware": 23645
+  },
+  "imbalance_ratio": 18.1
+}

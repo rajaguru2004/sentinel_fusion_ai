@@ -28,17 +28,24 @@ BENIGN_SAMPLE_FRAC = 0.06  # ~2M benign rows from ~33M — documented sampling
 # Sampling is chunk-uniform with fixed seed → unbiased w.r.t. time.
 
 # %%
-csv = glob.glob(str(D / "*.csv"))[0]
-rng = np.random.default_rng(42)
-keep_parts, total = [], 0
-for chunk in pd.read_csv(csv, chunksize=1_000_000):
-    total += len(chunk)
-    atk = chunk[(chunk["Is Attack IP"]) | (chunk["Is Account Takeover"])]
-    ben = chunk[~((chunk["Is Attack IP"]) | (chunk["Is Account Takeover"]))]
-    ben = ben.sample(frac=BENIGN_SAMPLE_FRAC, random_state=42)
-    keep_parts.append(pd.concat([atk, ben]))
-df = pd.concat(keep_parts, ignore_index=True)
-print(f"total rows scanned: {total:,}; kept: {len(df):,}")
+from prep_utils import CLEAN
+FAST_PATH = (CLEAN / "rba.parquet")
+if FAST_PATH.exists():
+    # idempotent fast path: sampling+cleaning already done in a prior run
+    df = pd.read_parquet(FAST_PATH)
+    print(f"loaded prior clean sample: {len(df):,} rows (delete {FAST_PATH} to rescan raw csv)")
+else:
+    csv = glob.glob(str(D / "*.csv"))[0]
+    rng = np.random.default_rng(42)
+    keep_parts, total = [], 0
+    for chunk in pd.read_csv(csv, chunksize=1_000_000):
+        total += len(chunk)
+        atk = chunk[(chunk["Is Attack IP"]) | (chunk["Is Account Takeover"])]
+        ben = chunk[~((chunk["Is Attack IP"]) | (chunk["Is Account Takeover"]))]
+        ben = ben.sample(frac=BENIGN_SAMPLE_FRAC, random_state=42)
+        keep_parts.append(pd.concat([atk, ben]))
+    df = pd.concat(keep_parts, ignore_index=True)
+    print(f"total rows scanned: {total:,}; kept: {len(df):,}")
 df.head(3)
 
 # %% [markdown]
@@ -53,8 +60,9 @@ before = len(df)
 df = df.drop_duplicates().reset_index(drop=True)
 print(f"dropped {before - len(df)} duplicates")
 print("missing:", {c: int(v) for c, v in df.isna().sum().items() if v})
-df["rtt_ms_missing"] = df["rtt_ms"].isna().astype("int8")
-df["rtt_ms"] = df["rtt_ms"].fillna(df["rtt_ms"].median())
+if "rtt_ms_missing" not in df.columns:  # skip on fast path — already imputed
+    df["rtt_ms_missing"] = df["rtt_ms"].isna().astype("int8")
+    df["rtt_ms"] = df["rtt_ms"].fillna(df["rtt_ms"].median())
 for c in ["country", "device_type", "browser_name_and_version", "os_name_and_version"]:
     if c in df.columns:
         df[c] = df[c].astype(str).fillna("unknown").astype("category")
@@ -63,7 +71,8 @@ for c in ["country", "device_type", "browser_name_and_version", "os_name_and_ver
 # ## Timestamp normalization — real timestamps here
 
 # %%
-df["event_time"] = pd.to_datetime(df["login_timestamp"], utc=True, errors="coerce")
+if "login_timestamp" in df.columns:
+    df["event_time"] = pd.to_datetime(df["login_timestamp"], utc=True, errors="coerce")
 bad = int(df["event_time"].isna().sum())
 print("unparseable timestamps:", bad)
 df = df.dropna(subset=["event_time"]).sort_values("event_time").reset_index(drop=True)

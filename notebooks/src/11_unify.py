@@ -17,12 +17,15 @@ for p in parts:
     print(" -", p.split("/")[-1])
 
 # %%
+import gc
 frames = []
 for p in parts:
     d = pd.read_parquet(p)
     assert list(d.columns) == list(UNIFIED_COLUMNS), f"schema drift in {p}"
     frames.append(d)
 df = pd.concat(frames, ignore_index=True)
+del frames
+gc.collect()
 # re-align categoricals across parts
 for c, t in UNIFIED_COLUMNS.items():
     if t == "category":
@@ -48,6 +51,34 @@ summary = df.groupby(["event_domain", "source_dataset"], observed=True).agg(
     synthetic_time=("time_is_synthetic", "mean"),
 )
 summary
+
+# %% [markdown]
+# ## Compact training set (resource-constrained target: model must run <1 GB VRAM)
+# Full unified dataset kept on disk for research. For training, benign rows are
+# capped per dataset (all malicious + context rows kept) → small, balanced-enough
+# corpus that fits tight memory budgets. Sampling is uniform-random, seed 42;
+# `sampling_weight` restores population ratios for calibrated probability estimates.
+
+# %%
+import numpy as np
+BENIGN_CAP = 300_000  # per source dataset
+rng = np.random.default_rng(42)
+parts_c = []
+for ds, grp in df.groupby("source_dataset", observed=True):
+    ben = grp[grp["label"] == 0]
+    rest = grp[grp["label"] != 0]
+    if len(ben) > BENIGN_CAP:
+        w = len(ben) / BENIGN_CAP
+        ben = ben.sample(n=BENIGN_CAP, random_state=42).assign(sampling_weight=w)
+        rest = rest.assign(sampling_weight=1.0)
+        print(f"{ds}: benign {len(grp[grp['label']==0]):,} -> {BENIGN_CAP:,} (weight {w:.1f})")
+    else:
+        ben = ben.assign(sampling_weight=1.0)
+        rest = rest.assign(sampling_weight=1.0)
+    parts_c.append(pd.concat([ben, rest]))
+compact = pd.concat(parts_c).sort_values(["event_time", "event_id"]).reset_index(drop=True)
+print(f"compact rows: {len(compact):,} (full: {len(df):,})")
+compact.to_parquet(UNIFIED / "unified_events_compact.parquet", index=False)
 
 # %%
 df.to_parquet(UNIFIED / "unified_events.parquet", index=False)

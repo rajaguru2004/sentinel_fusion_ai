@@ -1,0 +1,17 @@
+{
+  "dataset": "mitre_attack",
+  "rows": 697,
+  "columns": 6,
+  "memory_mb": 0.1,
+  "duplicate_rows": 0,
+  "missing_by_column": {},
+  "dtypes": {
+    "technique_id": "str",
+    "name": "str",
+    "tactics": "str",
+    "platforms": "str",
+    "created": "datetime64[us, UTC]",
+    "is_subtechnique": "bool"
+  },
+  "notes": "Enterprise ATT&CK techniques; reference/context rows label=-1."
+}

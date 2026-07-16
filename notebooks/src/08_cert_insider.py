@@ -47,10 +47,11 @@ frames = []
 specs = [
     ("logon", "logon", None),       # id, date, user, pc, activity (Logon/Logoff)
     ("device", "usb", None),        # USB Connect/Disconnect
-    ("file", "file_access", None),  # file copies to removable media
+    ("file", "file_access", 1_500_000),
     ("email", "email", 1_500_000),
     ("http", "web", 1_500_000),
 ]
+BULKY = {"content"}  # free-text payloads — drop at read time to bound memory
 for fname, etype, cap in specs:
     p = find(fname)
     if not p:
@@ -59,6 +60,7 @@ for fname, etype, cap in specs:
     it = pd.read_csv(p, chunksize=500_000)
     parts, n = [], 0
     for ch in it:
+        ch = ch.drop(columns=[c for c in ch.columns if c.lower() in BULKY])
         parts.append(ch)
         n += len(ch)
         if cap and n >= cap:

@@ -1,0 +1,29 @@
+{
+  "dataset": "cert_insider",
+  "rows": 8082113,
+  "columns": 10,
+  "memory_mb": 981.3,
+  "duplicate_rows": 2593,
+  "missing_by_column": {
+    "activity": 1500000,
+    "to": 6582113,
+    "from": 6582113,
+    "filename": 6582113
+  },
+  "dtypes": {
+    "event_time": "datetime64[us, UTC]",
+    "user": "str",
+    "pc": "str",
+    "activity": "str",
+    "to": "str",
+    "from": "str",
+    "filename": "str",
+    "stream": "str",
+    "event_type_norm": "str",
+    "label_bin": "int8"
+  },
+  "notes": "r4.2 subset; email/http capped at 1.5M rows each; label=-1 if answers file absent (anomaly-detection use).",
+  "label_distribution": {
+    "-1": 8082113
+  }
+}
