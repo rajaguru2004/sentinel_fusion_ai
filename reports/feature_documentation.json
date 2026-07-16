@@ -1,0 +1,21 @@
+{
+  "f_hour": "Hour of event (0-23, UTC)",
+  "f_dayofweek": "Day of week (0=Mon)",
+  "f_is_weekend": "1 if Sat/Sun",
+  "f_is_night": "1 if 00:00-05:59 UTC",
+  "f_hour_sin": "sin(2*pi*hour/24) cyclical encoding",
+  "f_hour_cos": "cos(2*pi*hour/24) cyclical encoding",
+  "f_user_seq_no": "Number of prior events by this user (0-based)",
+  "f_user_secs_since_last": "Seconds since user's previous event",
+  "f_user_past_malicious_rate": "Share of user's PAST events labeled 1 (excludes current row; leakage-safe)",
+  "f_user_new_country": "1 if first event of this user from this country (impossible-travel proxy)",
+  "f_amount_z_user": "Amount z-score vs user's PAST transactions (vectorized cumulative moments)",
+  "f_amount_ratio_mean": "Amount / user's PAST mean amount",
+  "f_log1p_amount": "log1p(amount)",
+  "f_log1p_bytes_out": "log1p(bytes_out)",
+  "f_log1p_bytes_in": "log1p(bytes_in)",
+  "f_bytes_ratio": "bytes_out / (bytes_in + 1)",
+  "f_device_seq_no": "Number of prior events on this device",
+  "f_device_past_hisev_count": "Count of device's PAST severity>=3 events (leakage-safe)",
+  "sampling_weight": "Inverse sampling probability of the row's stratum (benign caps in 11_unify); use as instance weight to recover population rates"
+}

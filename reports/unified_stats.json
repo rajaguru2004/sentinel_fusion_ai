@@ -1,0 +1,34 @@
+{
+  "full_rows": 25287127,
+  "compact_rows": 2043664,
+  "compact_columns": 24,
+  "domains_compact": {
+    "cyber": 594865,
+    "financial": 469669,
+    "behaviour": 450618,
+    "threat_intel": 373044,
+    "quantum": 155468
+  },
+  "label_distribution_compact": {
+    "0": 1130225,
+    "1": 761128,
+    "-1": 152311
+  },
+  "datasets_full": {
+    "baf": 1000000,
+    "beth": 1141078,
+    "cert_insider": 8082113,
+    "cicids2017": 2520484,
+    "cisa_kev": 1644,
+    "creditcard": 283726,
+    "feodo": 5,
+    "malicious_urls": 641119,
+    "mitre_attack": 697,
+    "paysim": 6362620,
+    "quantum_synth": 250000,
+    "rba": 4787377,
+    "unsw_nb15": 145222,
+    "urlhaus": 71042
+  },
+  "synthetic_time_share_compact": 0.6699
+}

@@ -1,0 +1,123 @@
+{
+  "missing_core_required": {
+    "event_id": 0,
+    "event_time": 0,
+    "event_domain": 0,
+    "event_type": 0,
+    "source_dataset": 0,
+    "severity": 0,
+    "label": 0,
+    "label_type": 0
+  },
+  "missing_core_ok": true,
+  "missing_share_by_column": {
+    "event_subtype": 0.0737,
+    "user_id": 0.5554,
+    "device_id": 0.5567,
+    "src_ip": 0.8529,
+    "dst_ip": 1.0,
+    "src_port": 1.0,
+    "dst_port": 0.9267,
+    "protocol": 0.9289,
+    "country": 0.7768,
+    "amount": 0.7702,
+    "duration_s": 0.63,
+    "bytes_in": 0.9289,
+    "bytes_out": 0.7795,
+    "attack_technique": 0.9997,
+    "f_user_seq_no": 0.5554,
+    "f_user_secs_since_last": 0.7059,
+    "f_user_past_malicious_rate": 0.7059,
+    "f_user_new_country": 0.8529,
+    "f_amount_z_user": 1.0,
+    "f_amount_ratio_mean": 1.0,
+    "f_log1p_amount": 0.7702,
+    "f_log1p_bytes_out": 0.7795,
+    "f_log1p_bytes_in": 0.9289,
+    "f_bytes_ratio": 0.9289,
+    "f_device_seq_no": 0.5567,
+    "f_device_past_hisev_count": 0.5567
+  },
+  "duplicate_event_ids": 0,
+  "duplicate_full_rows": 25141,
+  "duplicates_ok": true,
+  "invalid_timestamps": 0,
+  "future_timestamps": 101,
+  "pre_2010_timestamps": 149866,
+  "temporally_sorted": true,
+  "synthetic_time_share": 0.6699,
+  "invalid_labels": 0,
+  "label_distribution": {
+    "0": 1130225,
+    "1": 761128,
+    "-1": 152311
+  },
+  "positive_rate_labeled": 0.40243,
+  "positive_rate_by_dataset": {
+    "baf": {
+      "rows": 160800,
+      "pos_rate": 0.06859
+    },
+    "beth": {
+      "rows": 299777,
+      "pos_rate": 0.50017
+    },
+    "cicids2017": {
+      "rows": 149866,
+      "pos_rate": 1.0
+    },
+    "creditcard": {
+      "rows": 150604,
+      "pos_rate": 0.00314
+    },
+    "feodo": {
+      "rows": 5,
+      "pos_rate": 1.0
+    },
+    "malicious_urls": {
+      "rows": 299656,
+      "pos_rate": 0.49969
+    },
+    "paysim": {
+      "rows": 158265,
+      "pos_rate": 0.05189
+    },
+    "quantum_synth": {
+      "rows": 155468,
+      "pos_rate": 0.03469
+    },
+    "rba": {
+      "rows": 300648,
+      "pos_rate": 0.4995
+    },
+    "unsw_nb15": {
+      "rows": 145222,
+      "pos_rate": 0.44936
+    },
+    "urlhaus": {
+      "rows": 71042,
+      "pos_rate": 1.0
+    }
+  },
+  "severity_range_ok": true,
+  "feature_consistency_issues": [],
+  "leakage_notes": {
+    "engineered_features": "All rolling/historical features use shift(1) \u2014 past-only; verified in 12_feature_engineering.",
+    "synthetic_timestamps": "Datasets with synthetic times are flagged time_is_synthetic; do NOT use cross-dataset temporal joins on them.",
+    "paysim_isFlaggedFraud": "Kept only inside attributes JSON; it is a rule output, treat as feature not label.",
+    "quantum_synth": "Label is rule-derived from features by construction \u2014 model will learn the rule; use for pipeline validation, not as evidence of real-world quantum-risk predictive power.",
+    "beth_sus": "sus kept in attributes; correlated with evil label \u2014 drop if predicting evil strictly.",
+    "train_test_reuse": "UNSW/BETH official splits preserved in attributes.split for honest evaluation."
+  },
+  "top_feature_label_correlations": {
+    "f_user_past_malicious_rate": 0.812,
+    "f_device_past_hisev_count": 0.593,
+    "f_log1p_bytes_out": 0.5534,
+    "f_device_seq_no": 0.4972,
+    "f_log1p_bytes_in": 0.264,
+    "f_user_seq_no": 0.1975,
+    "f_hour_cos": 0.1474,
+    "f_log1p_amount": 0.1333
+  },
+  "overall_pass": true
+}
