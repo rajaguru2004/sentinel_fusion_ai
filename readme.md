@@ -193,7 +193,7 @@ Honesty contract: event data is simulated **from real labeled test rows** (`demo
 
 Classic non-interactive runs (recordings/CI): `--all`, `--scenario attack|benign`, `--fast`, `--no-color`.
 
-## 7. Setup & commands
+## 8. Setup & commands
 
 ```bash
 python3.12 -m venv .venv
@@ -214,7 +214,7 @@ The demo needs `models/` (regenerates in ~30 s, below) and `demo/scenarios.parqu
 make test | test-all | gates | bench | experiments | lint   # shortcuts
 ```
 
-## 8. Repo layout
+## 9. Repo layout
 
 ```
 ml/               training pipeline + benchmark + experiments
@@ -227,7 +227,7 @@ reports/ml/       metrics, SHAP plots, fusion report, experiments, MODELS.md
 data/, notebooks/, docs/, reports/   Phase 1 (below)
 ```
 
-## 9. Phase 1 — dataset collection & preprocessing
+## 10. Phase 1 — dataset collection & preprocessing
 
 ```
 data/raw/         raw downloads (gitignored): cyber, financial, behaviour, threat_intel
