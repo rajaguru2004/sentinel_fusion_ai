@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Datasets and archives
+data/
+*.zip
+*.tar.gz
+
+# Saved models (fastai saves weights here by default)
+models/
+*.pkl

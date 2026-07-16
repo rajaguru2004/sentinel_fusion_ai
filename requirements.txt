@@ -1,0 +1,9 @@
+fastai
+torch
+torchvision
+torchaudio
+jupyterlab
+notebook
+ipykernel
+kaggle
+python-dotenv
