@@ -5,14 +5,14 @@
     "rows": 2043664,
     "split_rule": "per-source temporal quantile cut on (event_time, event_id) order"
   },
+  "fast_mode": false,
   "versions": {
     "python": "3.12.13",
     "pandas": "3.0.3",
     "numpy": "2.4.6",
     "sklearn": "1.9.0",
     "xgboost": "3.3.0",
-    "lightgbm": "4.6.0",
-    "shap": "0.52.0"
+    "lightgbm": "4.6.0"
   },
   "params": {
     "xgb": {
@@ -144,12 +144,12 @@
     }
   },
   "stage_times_s": {
-    "load_split_s": 3.6,
-    "fraud_s": 4.8,
-    "cyber_s": 4.6,
-    "behaviour_s": 14.2,
-    "quantum_s": 2.0,
+    "load_split_s": 3.9,
+    "fraud_s": 6.5,
+    "cyber_s": 5.4,
+    "behaviour_s": 15.0,
+    "quantum_s": 1.9,
     "fusion_s": 0.6
   },
-  "total_s": 29.7
+  "total_s": 33.6
 }

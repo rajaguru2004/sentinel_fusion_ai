@@ -11,9 +11,9 @@
   "cross_domain_roc_auc_labeled_test": 0.9579,
   "risk_level_distribution": {
     "low": 160104,
-    "medium": 52891,
+    "medium": 52888,
     "critical": 34456,
-    "high": 3146
+    "high": 3149
   },
   "example_multi_signal": {
     "input": {

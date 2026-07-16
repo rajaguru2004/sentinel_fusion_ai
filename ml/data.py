@@ -34,9 +34,12 @@ def needed_columns() -> list[str]:
     return sorted(cols)
 
 
-def load_engineered() -> pd.DataFrame:
-    """Engineered corpus with quantum native attributes joined (q_ prefix)."""
-    df = pd.read_parquet(ENGINEERED_PARQUET, columns=needed_columns())
+def load_engineered(parquet_path=None, quantum_path=None) -> pd.DataFrame:
+    """Engineered corpus with quantum native attributes joined (q_ prefix).
+
+    Path args exist for test fixtures (mini parquet); defaults = full corpus.
+    """
+    df = pd.read_parquet(parquet_path or ENGINEERED_PARQUET, columns=needed_columns())
 
     # Target-leak scrub: for unsw_nb15/cicids2017 event_subtype IS the attack
     # category (attack_cat/Label mapped there at unify time) — null it so no
@@ -47,7 +50,8 @@ def load_engineered() -> pd.DataFrame:
 
     qmask = df["event_domain"] == "quantum"
     qids = df.loc[qmask, "event_id"]
-    qpart = pd.read_parquet(QUANTUM_PART_PARQUET, columns=["event_id", "attributes"])
+    qpart = pd.read_parquet(quantum_path or QUANTUM_PART_PARQUET,
+                            columns=["event_id", "attributes"])
     qpart = qpart[qpart["event_id"].isin(set(qids))]
     attrs = pd.json_normalize(qpart["attributes"].map(json.loads))
     attrs["event_id"] = qpart["event_id"].to_numpy()
@@ -80,7 +84,8 @@ def domain_slice(df: pd.DataFrame, split: pd.Series, model_key: str,
     return df.loc[m]
 
 
-def write_split_manifest(df: pd.DataFrame, split: pd.Series) -> dict:
+def write_split_manifest(df: pd.DataFrame, split: pd.Series,
+                         reports_dir=None) -> dict:
     """Persist split composition for reproducibility auditing."""
     comp = (pd.DataFrame({"source_dataset": df["source_dataset"],
                           "split": split, "label": df["label"]})
@@ -95,5 +100,6 @@ def write_split_manifest(df: pd.DataFrame, split: pd.Series) -> dict:
         "composition": {f"{a}/{b}": row for (a, b), row in
                         comp.astype("int64").to_dict("index").items()},
     }
-    (ML_REPORTS / "split_manifest.json").write_text(json.dumps(manifest, indent=2))
+    ((reports_dir or ML_REPORTS) / "split_manifest.json").write_text(
+        json.dumps(manifest, indent=2))
     return manifest

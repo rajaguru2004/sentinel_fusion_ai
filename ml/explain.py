@@ -18,9 +18,11 @@ import pandas as pd
 from .config import ML_REPORTS, SEED, SHAP_SAMPLE
 
 
-def shap_report(model, X_test: pd.DataFrame, model_key: str) -> dict:
+def shap_report(model, X_test: pd.DataFrame, model_key: str,
+                reports_dir=None) -> dict:
     import shap
 
+    reports_dir = reports_dir or ML_REPORTS
     Xs = X_test.sample(min(SHAP_SAMPLE, len(X_test)), random_state=SEED)
     explainer = shap.TreeExplainer(model)
     sv = explainer.shap_values(Xs, check_additivity=False)
@@ -35,12 +37,12 @@ def shap_report(model, X_test: pd.DataFrame, model_key: str) -> dict:
         shap.summary_plot(sv, Xs, plot_type=kind, show=False, max_display=15)
         plt.title(f"{model_key} — SHAP ({kind})")
         plt.tight_layout()
-        plt.savefig(ML_REPORTS / fname, dpi=110)
+        plt.savefig(reports_dir / fname, dpi=110)
         plt.close("all")
 
     imp = pd.Series(np.abs(sv).mean(axis=0), index=Xs.columns).sort_values(ascending=False)
     top = {k: round(float(v), 5) for k, v in imp.head(15).items()}
-    (ML_REPORTS / f"shap_{model_key}_top_features.json").write_text(
+    (reports_dir / f"shap_{model_key}_top_features.json").write_text(
         json.dumps({"model": model_key, "sample_rows": int(len(Xs)),
                     "mean_abs_shap_top15": top}, indent=2))
     return top

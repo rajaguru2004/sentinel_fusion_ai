@@ -1,0 +1,132 @@
+{
+  "fraud": {
+    "roc_auc": {
+      "value": 0.838,
+      "min": 0.833
+    },
+    "f1": {
+      "value": 0.4975,
+      "min": 0.4875
+    },
+    "precision": {
+      "value": 0.5101,
+      "min": 0.4901
+    },
+    "recall": {
+      "value": 0.4855,
+      "min": 0.4655
+    },
+    "pr_auc": {
+      "value": 0.5359,
+      "min": 0.5259
+    },
+    "single_row_ms_p50": {
+      "value": 1.398,
+      "max": 10.0
+    },
+    "batch_rows_per_sec": {
+      "value": 1940944,
+      "min": 970472
+    }
+  },
+  "cyber": {
+    "roc_auc": {
+      "value": 0.9975,
+      "min": 0.9925
+    },
+    "f1": {
+      "value": 0.962,
+      "min": 0.952
+    },
+    "precision": {
+      "value": 0.9552,
+      "min": 0.9352
+    },
+    "recall": {
+      "value": 0.969,
+      "min": 0.949
+    },
+    "pr_auc": {
+      "value": 0.9961,
+      "min": 0.9861
+    },
+    "single_row_ms_p50": {
+      "value": 0.788,
+      "max": 10.0
+    },
+    "batch_rows_per_sec": {
+      "value": 1630109,
+      "min": 815054
+    }
+  },
+  "behaviour": {
+    "roc_auc": {
+      "value": 0.5843,
+      "min": 0.5793
+    },
+    "f1": {
+      "value": 0.7369,
+      "min": 0.7269
+    },
+    "precision": {
+      "value": 0.5879,
+      "min": 0.5679
+    },
+    "recall": {
+      "value": 0.9869,
+      "min": 0.9669
+    },
+    "pr_auc": {
+      "value": 0.6013,
+      "min": 0.5913
+    },
+    "single_row_ms_p50": {
+      "value": 13.546,
+      "max": 60.0
+    },
+    "batch_rows_per_sec": {
+      "value": 122977,
+      "min": 61488
+    }
+  },
+  "quantum": {
+    "roc_auc": {
+      "value": 1.0,
+      "min": 0.995
+    },
+    "f1": {
+      "value": 0.9958,
+      "min": 0.9858
+    },
+    "precision": {
+      "value": 0.9916,
+      "min": 0.9716
+    },
+    "recall": {
+      "value": 1.0,
+      "min": 0.98
+    },
+    "pr_auc": {
+      "value": 0.9999,
+      "min": 0.9899
+    },
+    "single_row_ms_p50": {
+      "value": 1.396,
+      "max": 10.0
+    },
+    "batch_rows_per_sec": {
+      "value": 2990210,
+      "min": 1495105
+    }
+  },
+  "fusion": {
+    "cross_domain_roc_auc": {
+      "value": 0.9579,
+      "min": 0.9529
+    },
+    "fuse_rows_per_sec": {
+      "value": 396926,
+      "min": 198463
+    }
+  }
+}

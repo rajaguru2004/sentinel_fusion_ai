@@ -18,6 +18,14 @@ data/
 *.zip
 *.tar.gz
 
-# Saved models (fastai saves weights here by default)
+# Saved models — binaries untracked, registry manifests/JSON tracked
 models/
+!models/registry/
+models/registry/**/*.joblib
+!tests/fixtures/*.parquet
 *.pkl
+
+# Benchmark history stays tracked; pytest/ruff caches don't
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

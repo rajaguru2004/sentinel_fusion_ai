@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parent.parent
 UNIFIED = ROOT / "data" / "unified"
 MODELS = ROOT / "models"
 ML_REPORTS = ROOT / "reports" / "ml"
+REGISTRY = MODELS / "registry"
+BENCH_DIR = ROOT / "benchmarks"
 for _d in (MODELS, ML_REPORTS):
     _d.mkdir(parents=True, exist_ok=True)
 
@@ -95,3 +97,22 @@ RISK_BANDS = [(0.25, "low"), (0.50, "medium"), (0.75, "high"), (1.01, "critical"
 LATENCY_SINGLE_ROWS = 200   # single-row predict calls to time
 LATENCY_BATCH_SIZE = 10_000
 SHAP_SAMPLE = 2000          # test rows per SHAP report
+
+# ------------------------------------------------------------ fast / test ----
+# Tiny-model overrides for test fixtures and pipeline smoke runs.
+FAST_PARAMS = {
+    "xgb": dict(n_estimators=30, early_stopping_rounds=5, max_depth=4),
+    "lgbm": dict(n_estimators=40, num_leaves=15),
+    "iforest": dict(n_estimators=50, max_samples=128),
+}
+
+# Inference SLAs enforced by tests/perf and ml.benchmark --check (reference box).
+SLA = {
+    "gbm_single_row_ms_p50": 10.0,
+    "iforest_single_row_ms_p50": 60.0,
+    "batch_rows_per_sec_min": 50_000,
+    "scorer_cold_start_s": 5.0,
+}
+
+# Business cost ratios for cost-sensitive thresholding (experiments).
+COST = {"fraud": {"c_fp": 1.0, "c_fn": 20.0}}

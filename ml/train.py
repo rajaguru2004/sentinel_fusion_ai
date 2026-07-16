@@ -26,27 +26,31 @@ def _spw(y: np.ndarray) -> float:
 
 
 def train_xgb(X_tr: pd.DataFrame, y_tr: np.ndarray,
-              X_val: pd.DataFrame, y_val: np.ndarray):
+              X_val: pd.DataFrame, y_val: np.ndarray,
+              params: dict | None = None):
     from xgboost import XGBClassifier
-    model = XGBClassifier(**XGB_PARAMS, scale_pos_weight=_spw(y_tr))
+    model = XGBClassifier(**{**XGB_PARAMS, **(params or {})},
+                          scale_pos_weight=_spw(y_tr))
     model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
     return model
 
 
 def train_lgbm(X_tr: pd.DataFrame, y_tr: np.ndarray,
-               X_val: pd.DataFrame, y_val: np.ndarray):
+               X_val: pd.DataFrame, y_val: np.ndarray,
+               params: dict | None = None):
     import lightgbm as lgb
-    model = lgb.LGBMClassifier(**LGBM_PARAMS, scale_pos_weight=_spw(y_tr))
+    model = lgb.LGBMClassifier(**{**LGBM_PARAMS, **(params or {})},
+                               scale_pos_weight=_spw(y_tr))
     model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], eval_metric="auc",
               callbacks=[lgb.early_stopping(30, verbose=False)])
     return model
 
 
-def train_iforest(X_tr_imputed: pd.DataFrame):
+def train_iforest(X_tr_imputed: pd.DataFrame, params: dict | None = None):
     """Unsupervised: fit on ALL behaviour train rows (labeled rba + unlabeled
     cert_insider). Labels never touch training — only threshold selection."""
     from sklearn.ensemble import IsolationForest
-    model = IsolationForest(**IFOREST_PARAMS)
+    model = IsolationForest(**{**IFOREST_PARAMS, **(params or {})})
     model.fit(X_tr_imputed)
     return model
 

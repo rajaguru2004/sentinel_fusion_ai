@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinel-fusion-ai"
+version = "0.1.0"
+description = "Multi-domain security risk scoring: fraud, cyber, behaviour, quantum + risk fusion"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=3.0",
+    "numpy>=2.0",
+    "scikit-learn>=1.9",
+    "xgboost>=3.0",
+    "lightgbm>=4.0",
+    "joblib",
+    "pyarrow",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+train = ["shap", "matplotlib"]
+serve = ["fastapi", "uvicorn", "prometheus-client"]
+dev = ["pytest", "ruff", "httpx", "psutil"]
+notebooks = ["jupyterlab", "notebook", "ipykernel", "kaggle", "python-dotenv"]
+
+[tool.setuptools]
+packages = ["ml", "ml.experiments", "service"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not slow and not quality and not perf' --strict-markers -q"
+markers = [
+    "slow: loads the full 2M-row parquet",
+    "quality: needs real trained models/ + full data (model accuracy gates)",
+    "perf: latency/throughput SLA checks on real artifacts",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["E402"]  # matplotlib.use("Agg") before pyplot import is intentional

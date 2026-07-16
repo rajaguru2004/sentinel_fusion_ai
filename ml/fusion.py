@@ -35,6 +35,10 @@ class RiskFusionEngine:
         self.calibrators[model_key] = iso
 
     def calibrate(self, model_key: str, s) -> np.ndarray:
+        if model_key not in self.calibrators:
+            raise RuntimeError(
+                f"no calibrator fitted for '{model_key}' — call fit_calibrator() "
+                f"first (fitted: {sorted(self.calibrators)})")
         return self.calibrators[model_key].predict(np.atleast_1d(np.asarray(s, dtype="float64")))
 
     # ---------------------------------------------------------- inference ----
@@ -69,9 +73,11 @@ class RiskFusionEngine:
             out[f"p_{k}"] = np.where(m, c, np.nan)
             survive *= 1.0 - c
         out["risk_score"] = 1.0 - survive
-        out["risk_level"] = pd.cut(
-            out["risk_score"], [-0.01, *[b for b, _ in RISK_BANDS]],
-            labels=[lvl for _, lvl in RISK_BANDS]).astype(str)
+        # same left-closed semantics as band(): risk < bound -> level; e.g. 0.25 -> "medium"
+        bounds = np.array([b for b, _ in RISK_BANDS[:-1]])
+        levels = np.array([lvl for _, lvl in RISK_BANDS])
+        out["risk_level"] = levels[np.searchsorted(bounds, out["risk_score"].to_numpy(),
+                                                   side="right")]
         return out
 
     @staticmethod
