@@ -1,0 +1,29 @@
+{
+  "dataset": "paysim",
+  "rows": 6362620,
+  "columns": 13,
+  "memory_mb": 707.6,
+  "duplicate_rows": 0,
+  "missing_by_column": {},
+  "dtypes": {
+    "step": "int64",
+    "type": "category",
+    "amount": "float64",
+    "nameOrig": "str",
+    "oldbalanceOrg": "float64",
+    "newbalanceOrig": "float64",
+    "nameDest": "str",
+    "oldbalanceDest": "float64",
+    "newbalanceDest": "float64",
+    "isFraud": "int64",
+    "isFlaggedFraud": "int64",
+    "orig_balance_inconsistent": "int8",
+    "event_time": "datetime64[ns, UTC]"
+  },
+  "notes": "Simulated 30-day window anchored 2023-01-01 (synthetic). Balance inconsistencies kept as feature.",
+  "label_distribution": {
+    "0": 6354407,
+    "1": 8213
+  },
+  "imbalance_ratio": 773.7
+}

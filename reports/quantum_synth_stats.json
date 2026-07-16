@@ -1,0 +1,29 @@
+{
+  "dataset": "quantum_synth",
+  "rows": 250000,
+  "columns": 13,
+  "memory_mb": 30.9,
+  "duplicate_rows": 0,
+  "missing_by_column": {},
+  "dtypes": {
+    "event_time": "datetime64[ns, UTC]",
+    "device_id": "str",
+    "tls_version": "str",
+    "key_exchange": "str",
+    "cert_key_type": "str",
+    "data_class": "str",
+    "bytes_out": "float64",
+    "cert_age_days": "int64",
+    "cert_validity_days": "int64",
+    "dst_country": "str",
+    "quantum_exposed": "int8",
+    "label_hndl": "int8",
+    "severity": "int8"
+  },
+  "notes": "Fully synthetic; distributions grounded in SSL Pulse / Cloudflare Radar / Censys public stats. Rule-based HNDL label \u2014 interpretable by construction.",
+  "label_distribution": {
+    "0": 244607,
+    "1": 5393
+  },
+  "imbalance_ratio": 45.36
+}

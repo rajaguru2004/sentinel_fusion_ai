@@ -1,0 +1,30 @@
+{
+  "dataset": "beth",
+  "rows": 1141078,
+  "columns": 14,
+  "memory_mb": 134.6,
+  "duplicate_rows": 3,
+  "missing_by_column": {},
+  "dtypes": {
+    "event_time": "datetime64[ns, UTC]",
+    "processId": "int64",
+    "parentProcessId": "int64",
+    "userId": "int64",
+    "processName": "str",
+    "eventName": "category",
+    "argsNum": "int64",
+    "returnValue": "int64",
+    "sus": "int64",
+    "evil": "int64",
+    "label_bin": "int8",
+    "is_system_user": "bool",
+    "split": "str",
+    "hostName": "str"
+  },
+  "notes": "timestamp = sec-since-boot anchored to 2021-05-01 UTC (synthetic, order-preserving).",
+  "label_distribution": {
+    "0": 982646,
+    "1": 158432
+  },
+  "imbalance_ratio": 6.2
+}
