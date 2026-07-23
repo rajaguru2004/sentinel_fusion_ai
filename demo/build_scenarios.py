@@ -76,7 +76,7 @@ def main() -> None:
 
     from ml.config import MODELS
     from ml.features import CategoryEncoder, build_matrix
-    b = joblib.load(MODELS / "fraud_bundle.joblib")
+    b = joblib.load(MODELS / "fraud_payment_bundle.joblib")
     cand = df[(split == "test") & lab1 & (df["event_domain"] == "financial")
               & df["amount"].notna() & (df["amount"] > 1000)]
     Xc, _ = build_matrix(cand, "fraud", CategoryEncoder(b["encoder_mapping"]))

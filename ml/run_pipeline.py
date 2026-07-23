@@ -1,6 +1,6 @@
 """End-to-end training pipeline.
 
-    .venv/bin/python -m ml.run_pipeline [--fast] [--skip-shap] [--register]
+    .venv/bin/python -m ml.run_pipeline [--fast] [--skip-shap]
 
 Stages: load -> split -> per model (features -> train -> threshold on val ->
 metrics on test -> latency -> SHAP -> serialize) -> fusion engine (calibrate
@@ -11,7 +11,8 @@ df (fixture), alternate output dirs, fast=True for tiny models.
 
 Artifacts (into models_dir / reports_dir):
     <key>_bundle.joblib          model + encoder + medians + threshold + features
-    fraud_xgb.json, cyber_lgbm.txt, quantum_xgb.json    native boosters
+    fraud_payment_xgb.json, fraud_application_xgb.json,
+    cyber_lgbm.txt, quantum_xgb.json                   native boosters
     fusion_engine.joblib, reference_stats.json
     metrics_<key>.json, shap_<key>_*.{png,json}, fusion_report.json,
     fusion_risk_hist.png, split_manifest.json, run_manifest.json, metrics_all.json
@@ -35,6 +36,7 @@ from . import features as F
 from . import train as T
 from .config import (
     BEHAVIOUR_MODEL,
+    CONTRACT_HASH,
     FAST_PARAMS,
     FEATURES,
     FUSION_WEIGHTS,
@@ -45,10 +47,16 @@ from .config import (
     SEED,
     XGB_PARAMS,
 )
-from .evaluate import compute_metrics, latency_benchmark, pick_threshold
+from .evaluate import (
+    compute_metrics,
+    latency_benchmark,
+    pick_threshold,
+    single_feature_auc_audit,
+)
 from .fusion import RiskFusionEngine
 
-MODEL_LIB = {"fraud": "xgboost", "cyber": "lightgbm",
+MODEL_LIB = {"fraud_payment": "xgboost", "fraud_application": "xgboost",
+             "cyber": "lightgbm",
              "behaviour": ("lightgbm" if BEHAVIOUR_MODEL == "lgbm_supervised"
                            else "isolation_forest"),
              "quantum": "xgboost"}
@@ -71,7 +79,7 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
     X_va, _ = F.build_matrix(va, key, enc)
     X_te, _ = F.build_matrix(te, key, enc)
     y_tr, _ = F.labels_and_weights(tr)
-    y_va, _ = F.labels_and_weights(va)
+    y_va, w_va = F.labels_and_weights(va)
     y_te, w_te = F.labels_and_weights(te)
 
     lib = MODEL_LIB[key]
@@ -89,6 +97,12 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
     else:
         model = T.train_xgb(X_tr, y_tr, X_va, y_va, over)
 
+    # Leak audit BEFORE trusting any metric: a single feature that ranks the
+    # label near-perfectly inside one source is an alias, not a signal.
+    leaks = single_feature_auc_audit(X_tr, y_tr, tr["source_dataset"]) if supervised else []
+    if leaks:
+        print(f"  !! single-feature leak audit flagged {len(leaks)}: {leaks[:5]}")
+
     s_va, s_te = T.score(model, X_va), T.score(model, X_te)
     threshold = pick_threshold(y_va, s_va)
     metrics = {
@@ -99,6 +113,7 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
         "test": compute_metrics(y_te, s_te, threshold),
         "test_population_weighted": compute_metrics(y_te, s_te, threshold, w_te),
         "latency": latency_benchmark(model, X_te),
+        "single_feature_leak_audit": leaks,
     }
     if supervised:
         best_it = getattr(model, "best_iteration", None) or getattr(model, "best_iteration_", None)
@@ -108,9 +123,12 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
         metrics["shap_top_features"] = shap_report(model, X_te, key,
                                                    reports_dir=reports_dir)
 
+    # contract_hash pins the feature contract this model was trained under; the
+    # service refuses to start on a mismatch (service/app.py::check_contract).
     bundle = {"model": model, "features": list(X_tr.columns),
               "encoder_mapping": enc.mapping, "medians": medians,
-              "threshold": threshold, "library": lib, "seed": SEED}
+              "threshold": threshold, "library": lib, "seed": SEED,
+              "contract_hash": CONTRACT_HASH}
     joblib.dump(bundle, models_dir / f"{key}_bundle.joblib", compress=3)
     if lib == "xgboost":
         booster = model.get_booster()
@@ -128,6 +146,7 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
     if medians is not None:
         X_all = F.impute(X_all, medians)
     return {"bundle": bundle, "metrics": metrics, "s_va": s_va, "y_va": y_va,
+            "w_va": w_va,
             "test_index": te_all.index, "test_scores": T.score(model, X_all),
             "X_tr": X_tr}
 
@@ -135,7 +154,8 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
 def _reference_stats(per_model_Xtr: dict[str, pd.DataFrame],
                      val_scores: dict[str, np.ndarray]) -> dict:
     """Train-time drift baseline: per model, per feature — 10-quantile bin
-    edges + occupancy; plus raw val score deciles. Consumed by ml.drift."""
+    edges + occupancy; plus raw val score deciles. Written to
+    models/reference_stats.json as the drift baseline for downstream monitoring."""
     ref = {}
     qs = np.linspace(0, 1, 11)
     for key, X in per_model_Xtr.items():
@@ -186,6 +206,12 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
                       fast=fast, skip_shap=skip_shap)
         print(f"  test: {r['metrics']['test']}")
         engine.fit_calibrator(key, r["s_va"], r["y_va"])
+        # Band cut points are fitted on the FUSED validation risk (what the bank
+        # actually bands), not on the raw model score.
+        va_risk = engine.fuse_frame(
+            pd.DataFrame({key: r["s_va"]}))["risk_score"].to_numpy()
+        band_table = engine.fit_bands(key, va_risk, r["y_va"], r["w_va"])
+        print(f"  bands: {[(round(b, 4), lvl) for b, lvl in band_table[:-1]]}")
         test_scores.loc[r["test_index"], key] = r["test_scores"]
         per_model_Xtr[key] = r["X_tr"]
         val_scores[key] = r["s_va"]
@@ -212,7 +238,7 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
     plt.tight_layout(); plt.savefig(reports_dir / "fusion_risk_hist.png", dpi=110)
     plt.close("all")
 
-    example = engine.fuse({"fraud": 0.92, "behaviour": 0.1})
+    example = engine.fuse({"fraud_payment": 0.92, "behaviour": 0.1})
     fusion_report = {
         "weights": FUSION_WEIGHTS,
         "calibration": "isotonic per model, fitted on validation",
@@ -220,7 +246,7 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
         "test_events_fused": int(len(fused)),
         "cross_domain_roc_auc_labeled_test": round(fusion_auc, 4),
         "risk_level_distribution": fused["risk_level"].value_counts().to_dict(),
-        "example_multi_signal": {"input": {"fraud": 0.92, "behaviour": 0.1},
+        "example_multi_signal": {"input": {"fraud_payment": 0.92, "behaviour": 0.1},
                                  "output": example},
     }
     (reports_dir / "fusion_report.json").write_text(json.dumps(fusion_report, indent=2))

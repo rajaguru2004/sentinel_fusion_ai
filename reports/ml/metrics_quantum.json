@@ -36,13 +36,14 @@
   },
   "latency": {
     "single_row_ms": {
-      "mean": 1.398,
-      "p50": 1.379,
-      "p95": 1.496
+      "mean": 1.439,
+      "p50": 1.388,
+      "p95": 1.567
     },
     "batch_rows": 10000,
-    "batch_rows_per_sec": 3039892
+    "batch_rows_per_sec": 2420403
   },
+  "single_feature_leak_audit": [],
   "best_iteration": 119,
   "shap_top_features": {
     "q_data_class": 4.24012,

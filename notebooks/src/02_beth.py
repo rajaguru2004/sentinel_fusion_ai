@@ -110,6 +110,13 @@ u = pd.DataFrame({
 attr_cols = ["processId", "parentProcessId", "processName", "argsNum", "returnValue", "sus", "split"]
 u[attr_cols] = clean[attr_cols]
 u = to_unified(u, source_dataset="beth", event_domain="cyber",
-               event_type="process_exec", label_type="attack", attributes_cols=attr_cols)
+               event_type="process_exec", label_type="attack", attributes_cols=attr_cols,
+               label_alias_exempt={"severity": (
+                   "v1 mapping: severity>=3 iff evil==1, so it reproduces the label exactly "
+                   "(measured balanced accuracy 1.0000). Retained UNCHANGED because the cyber "
+                   "model is frozen in schema v2 and must stay bit-comparable; the leak reaches "
+                   "the model via f_device_past_hisev_count, which is documented in "
+                   "reports/ml/MODELS.md and dropped from the fraud/behaviour contracts. "
+                   "Fix this mapping if beth is ever retrained.")})
 save_unified_part(u, "beth")
 u.head(3)

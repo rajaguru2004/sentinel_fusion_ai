@@ -15,7 +15,8 @@ pytestmark = pytest.mark.perf
 @pytest.fixture(scope="module")
 def matrices(real_artifacts, fixture_frame):
     out = {}
-    domain = {"fraud": "financial", "cyber": "cyber",
+    domain = {"fraud_payment": "financial", "fraud_application": "financial",
+              "cyber": "cyber",
               "behaviour": "behaviour", "quantum": "quantum"}
     for key, dom in domain.items():
         bundle = joblib.load(real_artifacts / f"{key}_bundle.joblib")
@@ -28,7 +29,8 @@ def matrices(real_artifacts, fixture_frame):
     return out
 
 
-@pytest.mark.parametrize("key", ["fraud", "cyber", "quantum"])
+@pytest.mark.parametrize("key", ["fraud_payment", "fraud_application",
+                                 "cyber", "quantum"])
 def test_gbm_single_row_p50(matrices, key):
     model, X = matrices[key]
     lat = latency_benchmark(model, X)
@@ -41,7 +43,8 @@ def test_iforest_single_row_p50(matrices):
     assert lat["single_row_ms"]["p50"] < SLA["iforest_single_row_ms_p50"]
 
 
-@pytest.mark.parametrize("key", ["fraud", "cyber", "behaviour", "quantum"])
+@pytest.mark.parametrize("key", ["fraud_payment", "fraud_application",
+                                 "cyber", "behaviour", "quantum"])
 def test_batch_throughput(matrices, key):
     model, X = matrices[key]
     lat = latency_benchmark(model, X)

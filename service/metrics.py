@@ -2,7 +2,13 @@
 other collectors and is trivial to reset in tests."""
 from __future__ import annotations
 
-from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 
 REGISTRY = CollectorRegistry()
 
@@ -15,6 +21,20 @@ SCORED_TOTAL = Counter(
     "sentinel_scored_total", "Events scored", ["model", "risk_level"],
     registry=REGISTRY)
 
+# Per-client attribution (§5.1): a named key makes traffic, throttling and
+# revocation per-integration rather than all-or-nothing.
+REQUESTS_TOTAL = Counter(
+    "sentinel_requests_total", "Authenticated requests", ["client", "endpoint"],
+    registry=REGISTRY)
+
+RATE_LIMITED_TOTAL = Counter(
+    "sentinel_rate_limited_total", "Requests rejected by the rate limiter",
+    ["client"], registry=REGISTRY)
+
+BREAKER_STATE = Gauge(
+    "sentinel_store_breaker_open", "1 when the feature-store circuit is open",
+    registry=REGISTRY)
+
 DEGRADED_TOTAL = Counter(
     "sentinel_degraded_total", "Events scored without live feature-store state",
     registry=REGISTRY)
@@ -23,6 +43,33 @@ FEEDBACK_TOTAL = Counter(
     "sentinel_feedback_total", "Feedback events applied", ["applied"],
     registry=REGISTRY)
 
+INGESTED_TOTAL = Counter(
+    "sentinel_ingested_total", "Context events ingested without scoring",
+    registry=REGISTRY)
 
-def render() -> bytes:
+# §5.4 observability. `degraded_total` alone cannot distinguish "brand-new
+# customer" from "Redis is down" — the first is normal, the second is an
+# incident. Track them separately, plus the score distribution and feature
+# null-rate so silent degradation is visible before the bank reports it.
+COLD_ENTITY_TOTAL = Counter(
+    "sentinel_cold_entity_total", "Events scored with no prior entity history",
+    ["entity"], registry=REGISTRY)
+
+RISK_SCORE = Histogram(
+    "sentinel_risk_score", "Fused risk score distribution", ["model"],
+    registry=REGISTRY,
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0))
+
+FEATURE_NULL_TOTAL = Counter(
+    "sentinel_feature_null_total", "Model features that arrived NaN",
+    ["model", "feature"], registry=REGISTRY)
+
+FEATURE_SEEN_TOTAL = Counter(
+    "sentinel_feature_seen_total", "Model feature observations",
+    ["model"], registry=REGISTRY)
+
+
+def render(breaker_open: bool | None = None) -> bytes:
+    if breaker_open is not None:
+        BREAKER_STATE.set(1 if breaker_open else 0)
     return generate_latest(REGISTRY)

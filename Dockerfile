@@ -1,7 +1,12 @@
 # syntax=docker/dockerfile:1
 # Multi-stage, CPU-only image for the Sentinel Fusion AI scoring API.
-# Trained model bundles (models/*.joblib, ~5 MB) are baked in from the build
-# context — they are gitignored, so the image is the artifact of record.
+# Trained model bundles (models/*.joblib) are baked in from the build context —
+# they are gitignored, so the image is the artifact of record.
+#
+# Schema v2: bundles carry a CONTRACT_HASH and the service refuses to start if it
+# does not match the feature contract in the image's ml/feature_spec.py. Build
+# the image from the SAME tree the models were trained in, or startup will fail
+# loudly (which is the point — it beats silently mis-scoring live traffic).
 
 # ---------------------------------------------------------------- builder ----
 FROM python:3.12-slim AS builder
@@ -41,8 +46,8 @@ RUN useradd -r -u 10001 sentinel && chown -R sentinel:sentinel /app
 USER sentinel
 
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready').status==200 else 1)"
 
 # --factory so each worker builds and warms its own scorer singleton.
 CMD ["uvicorn", "service.app:create_app", "--factory", \

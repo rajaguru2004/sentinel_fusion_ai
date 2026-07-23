@@ -18,6 +18,14 @@ services:
       SENTINEL_API_KEYS: ${SENTINEL_API_KEYS:-sentinel-demo-key-2026}
       SENTINEL_STORE_TIMEOUT_MS: "50"
       SENTINEL_MAX_BATCH: "1000"
+      # Per-CLIENT rate limit; 0 disables. Set a real value in production and
+      # use named keys ("core-banking:KEY,fraud-ops:KEY") so one noisy
+      # integration cannot throttle the others.
+      SENTINEL_RATE_LIMIT_PER_MINUTE: ${SENTINEL_RATE_LIMIT_PER_MINUTE:-0}
+      # Circuit breaker: after N consecutive store faults, degrade instantly
+      # instead of paying the 50ms store timeout on every request.
+      SENTINEL_BREAKER_FAIL_THRESHOLD: "5"
+      SENTINEL_BREAKER_RESET_S: "10"
     depends_on:
       redis:
         condition: service_healthy

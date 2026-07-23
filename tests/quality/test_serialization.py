@@ -18,7 +18,8 @@ def sample(fixture_frame):
 
 
 def _matrix(bundle, df, key):
-    domain = {"fraud": "financial", "cyber": "cyber",
+    domain = {"fraud_payment": "financial", "fraud_application": "financial",
+              "cyber": "cyber",
               "behaviour": "behaviour", "quantum": "quantum"}[key]
     rows = df[df["event_domain"] == domain].head(1000)
     X, _ = build_matrix(rows, key, CategoryEncoder(bundle["encoder_mapping"]))
@@ -28,7 +29,7 @@ def _matrix(bundle, df, key):
     return X
 
 
-@pytest.mark.parametrize("key", ["fraud", "quantum"])
+@pytest.mark.parametrize("key", ["fraud_payment", "fraud_application", "quantum"])
 def test_xgb_bundle_vs_native_json_parity(real_artifacts, sample, key):
     import xgboost as xgb
     bundle = joblib.load(real_artifacts / f"{key}_bundle.joblib")
@@ -49,7 +50,8 @@ def test_lgbm_bundle_vs_native_txt_parity(real_artifacts, sample):
     np.testing.assert_allclose(native, wrapped, atol=1e-6)
 
 
-@pytest.mark.parametrize("key", ["fraud", "cyber", "behaviour", "quantum"])
+@pytest.mark.parametrize("key", ["fraud_payment", "fraud_application",
+                                 "cyber", "behaviour", "quantum"])
 def test_bundle_contains_required_keys(real_artifacts, key):
     bundle = joblib.load(real_artifacts / f"{key}_bundle.joblib")
     assert BUNDLE_KEYS <= set(bundle)
@@ -57,8 +59,8 @@ def test_bundle_contains_required_keys(real_artifacts, key):
 
 
 def test_bundle_joblib_roundtrip(real_artifacts, sample, tmp_path):
-    bundle = joblib.load(real_artifacts / "fraud_bundle.joblib")
-    X = _matrix(bundle, sample, "fraud")
+    bundle = joblib.load(real_artifacts / "fraud_payment_bundle.joblib")
+    X = _matrix(bundle, sample, "fraud_payment")
     joblib.dump(bundle, tmp_path / "b.joblib", compress=3)
     clone = joblib.load(tmp_path / "b.joblib")
     np.testing.assert_allclose(bundle["model"].predict_proba(X)[:, 1],
@@ -70,4 +72,4 @@ def test_fusion_engine_roundtrip(real_artifacts, tmp_path):
     joblib.dump(eng, tmp_path / "f.joblib")
     clone = joblib.load(tmp_path / "f.joblib")
     for s in [0.1, 0.5, 0.9]:
-        assert eng.fuse({"fraud": s}) == clone.fuse({"fraud": s})
+        assert eng.fuse({"fraud_payment": s}) == clone.fuse({"fraud_payment": s})

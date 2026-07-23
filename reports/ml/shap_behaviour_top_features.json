@@ -2,20 +2,18 @@
   "model": "behaviour",
   "sample_rows": 2000,
   "mean_abs_shap_top15": {
-    "country": 0.75473,
-    "f_user_past_malicious_rate": 0.09201,
-    "f_device_past_hisev_count": 0.08884,
-    "f_user_seq_no": 0.06777,
-    "f_device_seq_no": 0.03767,
-    "event_subtype": 0.02918,
-    "f_hour": 0.01897,
-    "duration_s": 0.01175,
-    "f_is_night": 0.00982,
-    "f_hour_cos": 0.00761,
-    "f_user_secs_since_last": 0.00493,
-    "f_user_new_country": 0.00226,
-    "f_hour_sin": 0.00159,
-    "f_dayofweek": 0.00055,
-    "f_is_weekend": 0.0
+    "f_device_seq_no": 0.50967,
+    "f_user_secs_since_last": 0.20719,
+    "f_user_seq_no": 0.20629,
+    "event_subtype": 0.16845,
+    "f_hour": 0.13469,
+    "duration_s": 0.06084,
+    "f_user_new_country": 0.02034,
+    "f_is_night": 0.01602,
+    "f_hour_cos": 0.0112,
+    "f_dayofweek": 0.01084,
+    "f_hour_sin": 0.0031,
+    "f_is_weekend": 0.00217,
+    "event_type": 0.0
   }
 }

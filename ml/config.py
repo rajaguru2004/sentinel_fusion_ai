@@ -25,50 +25,38 @@ N_JOBS = max(1, (os.cpu_count() or 4) - 1)
 TRAIN_FRAC, VAL_FRAC = 0.70, 0.15  # test = remainder; per-source temporal quantiles
 
 # ---------------------------------------------------------------- features ----
-# Shared engineered features (leakage-safe by construction: past-only aggregates).
-# EXCLUDED everywhere:
-#   severity                 — label-derived in several sources (e.g. creditcard
-#                              severity=3 iff Class==1) → direct target leakage
-#   label_type, source_dataset, sampling_weight, event_id, attack_technique
-TEMPORAL_F = ["f_hour", "f_dayofweek", "f_is_weekend", "f_is_night",
-              "f_hour_sin", "f_hour_cos"]
-USER_F = ["f_user_seq_no", "f_user_secs_since_last",
-          "f_user_past_malicious_rate", "f_user_new_country"]
-DEVICE_F = ["f_device_seq_no", "f_device_past_hisev_count"]
+# Feature lists moved to ml/feature_spec.py — THE contract, shared by training and
+# serving and fingerprinted by CONTRACT_HASH. Re-exported here so existing
+# imports (`from .config import FEATURES`) keep working.
+#
+# EXCLUDED everywhere: severity (label-derived in v1; see docs/canonical_schema.md),
+# label_type, source_dataset, sampling_weight, event_id, attack_technique.
+from .feature_spec import (  # noqa: E402
+    CONTRACT_HASH,
+    DEVICE_F,
+    FROZEN_MODELS,
+    MODEL_SOURCES,
+    TEMPORAL_F,
+    USER_F,
+    route,
+)
+from .feature_spec import (
+    MODEL_FEATURES as FEATURES,
+)
 
-# numeric = passed through as float32 (NaN kept for GBMs, imputed for IForest)
-# categorical = ordinal-encoded with persisted mapping (unseen -> -1)
-FEATURES: dict[str, dict[str, list[str]]] = {
-    "fraud": {
-        "numeric": ["amount", "f_log1p_amount", "f_amount_z_user",
-                    "f_amount_ratio_mean", "duration_s", *USER_F, *TEMPORAL_F],
-        "categorical": ["event_type"],
-    },
-    # cyber event_subtype: attack-category values (unsw_nb15/cicids2017) are
-    # nulled at load time (data.load_engineered) — only BETH syscall names remain.
-    "cyber": {
-        "numeric": ["duration_s", "bytes_in", "bytes_out", "f_log1p_bytes_in",
-                    "f_log1p_bytes_out", "f_bytes_ratio", "src_port", "dst_port",
-                    *USER_F, *DEVICE_F, *TEMPORAL_F],
-        "categorical": ["event_type", "event_subtype", "protocol"],
-    },
-    "behaviour": {
-        "numeric": ["duration_s", *USER_F, *DEVICE_F, *TEMPORAL_F],
-        "categorical": ["event_type", "event_subtype", "country"],
-    },
-    # Quantum core schema is thin — native attrs joined from part_quantum_synth
-    # (q_ prefix). Label is a documented deterministic HNDL rule of these fields;
-    # near-perfect metrics expected — rule-recovery sanity model by design.
-    "quantum": {
-        "numeric": ["bytes_out", "f_log1p_bytes_out", "f_device_seq_no",
-                    "q_cert_age_days", "q_cert_validity_days", *TEMPORAL_F],
-        "categorical": ["event_subtype", "country", "q_key_exchange",
-                        "q_cert_key_type", "q_data_class"],
-    },
-}
+# Domain each model scores. v1 mapped one model per domain; the financial domain
+# now has two heads (payment vs application), so routing also consults
+# event_type — see feature_spec.route().
+DOMAIN_OF_MODEL = {"fraud_payment": "financial", "fraud_application": "financial",
+                   "cyber": "cyber", "behaviour": "behaviour", "quantum": "quantum"}
 
-DOMAIN_OF_MODEL = {"fraud": "financial", "cyber": "cyber",
-                   "behaviour": "behaviour", "quantum": "quantum"}
+# Explicit re-export surface (also stops ruff F401 flagging the pass-throughs).
+__all__ = ["FEATURES", "TEMPORAL_F", "USER_F", "DEVICE_F", "MODEL_SOURCES",
+           "FROZEN_MODELS", "CONTRACT_HASH", "route", "DOMAIN_OF_MODEL",
+           "SEED", "N_JOBS", "TRAIN_FRAC", "VAL_FRAC", "XGB_PARAMS",
+           "LGBM_PARAMS", "IFOREST_PARAMS", "FUSION_WEIGHTS", "RISK_BANDS",
+           "BEHAVIOUR_MODEL", "FAST_PARAMS", "SLA", "COST", "MODELS",
+           "ML_REPORTS", "ENGINEERED_PARQUET", "QUANTUM_PART_PARQUET"]
 
 # Behaviour model kind. "lgbm_supervised" promoted 2026-07-16 via
 # ml.benchmark --challenger: val ROC-AUC 0.8514 vs IsolationForest 0.5843
@@ -98,8 +86,28 @@ IFOREST_PARAMS = dict(
 # ---------------------------------------------------------------- fusion ------
 # Domain weights: relative trust/severity prior per signal. Behaviour lowest —
 # unsupervised score, weakest calibration guarantees.
-FUSION_WEIGHTS = {"fraud": 1.0, "cyber": 1.0, "behaviour": 0.7, "quantum": 0.9}
+# Both fraud heads inherit the v1 fraud weight — the split is about giving each
+# a populated feature contract, not about trusting one more than the other.
+FUSION_WEIGHTS = {"fraud_payment": 1.0, "fraud_application": 1.0,
+                  "cyber": 1.0, "behaviour": 0.7, "quantum": 0.9}
+# Fallback bands, used only when a model has no fitted cut points (legacy
+# bundles, or a model with too few validation positives to fit on).
 RISK_BANDS = [(0.25, "low"), (0.50, "medium"), (0.75, "high"), (1.01, "critical")]
+
+# Per-model band cut points are FITTED instead (ml.fusion.fit_bands).
+#
+# Why: `risk_score` is a genuine calibrated probability, so at a realistic fraud
+# base rate (~0.3%) even a strong signal lands near 0.05 — the fixed 0.25/0.50
+# constants then report almost all traffic as "low". Rescaling the score would
+# fix the bands but destroy the probability contract (and with it calibration
+# monitoring), so the score is left alone and the BANDS move.
+#
+# Each boundary is the cost-optimal threshold at a stated c_fn/c_fp ratio, which
+# is what makes the bands defensible to a risk committee: "high" begins where
+# missing a fraud costs 20x a false positive — the ratio already in COST below.
+# A larger ratio means false negatives hurt more, so the threshold drops and the
+# band opens earlier; hence medium(60) < high(20) < critical(5).
+BAND_COST_RATIOS = {"medium": 60.0, "high": 20.0, "critical": 5.0}
 
 LATENCY_SINGLE_ROWS = 200   # single-row predict calls to time
 LATENCY_BATCH_SIZE = 10_000

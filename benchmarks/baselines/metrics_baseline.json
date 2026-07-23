@@ -1,32 +1,62 @@
 {
-  "fraud": {
+  "fraud_payment": {
     "roc_auc": {
-      "value": 0.838,
-      "min": 0.833
+      "value": 0.9981,
+      "min": 0.9931
     },
     "f1": {
-      "value": 0.4975,
-      "min": 0.4875
+      "value": 0.8314,
+      "min": 0.8214
     },
     "precision": {
-      "value": 0.5101,
-      "min": 0.4901
+      "value": 0.8629,
+      "min": 0.8429
     },
     "recall": {
-      "value": 0.4855,
-      "min": 0.4655
+      "value": 0.8021,
+      "min": 0.7821
     },
     "pr_auc": {
-      "value": 0.5359,
-      "min": 0.5259
+      "value": 0.8897,
+      "min": 0.8797
     },
     "single_row_ms_p50": {
-      "value": 1.393,
+      "value": 2.569,
       "max": 10.0
     },
     "batch_rows_per_sec": {
-      "value": 1919030,
-      "min": 959515
+      "value": 1605009,
+      "min": 802504
+    }
+  },
+  "fraud_application": {
+    "roc_auc": {
+      "value": 0.7927,
+      "min": 0.7877
+    },
+    "f1": {
+      "value": 0.3814,
+      "min": 0.3714
+    },
+    "precision": {
+      "value": 0.3575,
+      "min": 0.3375
+    },
+    "recall": {
+      "value": 0.4086,
+      "min": 0.3886
+    },
+    "pr_auc": {
+      "value": 0.3469,
+      "min": 0.3369
+    },
+    "single_row_ms_p50": {
+      "value": 1.533,
+      "max": 10.0
+    },
+    "batch_rows_per_sec": {
+      "value": 3299969,
+      "min": 1649984
     }
   },
   "cyber": {
@@ -39,54 +69,54 @@
       "min": 0.952
     },
     "precision": {
-      "value": 0.9552,
-      "min": 0.9352
+      "value": 0.9597,
+      "min": 0.9397
     },
     "recall": {
-      "value": 0.969,
-      "min": 0.949
+      "value": 0.9643,
+      "min": 0.9443
     },
     "pr_auc": {
-      "value": 0.9961,
-      "min": 0.9861
+      "value": 0.996,
+      "min": 0.986
     },
     "single_row_ms_p50": {
-      "value": 0.778,
+      "value": 0.788,
       "max": 10.0
     },
     "batch_rows_per_sec": {
-      "value": 1711365,
-      "min": 855682
+      "value": 1686868,
+      "min": 843434
     }
   },
   "behaviour": {
     "roc_auc": {
-      "value": 0.8167,
-      "min": 0.8117
+      "value": 0.7033,
+      "min": 0.6983
     },
     "f1": {
-      "value": 0.8285,
-      "min": 0.8185
+      "value": 0.7476,
+      "min": 0.7376
     },
     "precision": {
-      "value": 0.7326,
-      "min": 0.7126
+      "value": 0.631,
+      "min": 0.611
     },
     "recall": {
-      "value": 0.9531,
-      "min": 0.9331
+      "value": 0.9168,
+      "min": 0.8968
     },
     "pr_auc": {
-      "value": 0.7922,
-      "min": 0.7822
+      "value": 0.7144,
+      "min": 0.7044
     },
     "single_row_ms_p50": {
-      "value": 0.728,
+      "value": 0.709,
       "max": 60.0
     },
     "batch_rows_per_sec": {
-      "value": 8725744,
-      "min": 4362872
+      "value": 7325663,
+      "min": 3662831
     }
   },
   "quantum": {
@@ -111,22 +141,22 @@
       "min": 0.9899
     },
     "single_row_ms_p50": {
-      "value": 1.383,
+      "value": 1.387,
       "max": 10.0
     },
     "batch_rows_per_sec": {
-      "value": 3072063,
-      "min": 1536031
+      "value": 2772366,
+      "min": 1386183
     }
   },
   "fusion": {
     "cross_domain_roc_auc": {
-      "value": 0.9717,
-      "min": 0.9667
+      "value": 0.9811,
+      "min": 0.9761
     },
     "fuse_rows_per_sec": {
-      "value": 955019,
-      "min": 477509
+      "value": 332481,
+      "min": 166240
     }
   }
 }

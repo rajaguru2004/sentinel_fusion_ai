@@ -2,11 +2,20 @@
 
     .venv/bin/python -m tests.make_fixture
 
-Per source_dataset: first 1500 + last 1500 rows in (event_time, event_id)
-order — keeps temporal structure so temporal_split still yields non-empty
-train/val/test per source — plus up to 1000 additional positives (seed 42)
-so supervised models have signal. Output ~60K rows, a few MB, committed to
-git (data/ itself is gitignored; this is what makes fast tests portable).
+Per source_dataset: a **systematic** sample (every k-th row in
+(event_time, event_id) order) plus up to 1000 evenly-spaced positives.
+
+Why systematic rather than head/tail + random positives (the previous scheme):
+head and tail are dense, contiguous *time windows*, so positives sampled from
+the whole timeline sort into the middle of the fixture and land entirely in the
+train slice. Sparkov, at a 0.5% fraud rate, ended up with 1000 positives in
+train and **zero in val/test** — `roc_auc` came out NaN and the "models learn
+signal" gate failed on an artefact of the fixture, not the model.
+
+Systematic sampling preserves temporal spread *and* the source's positive rate,
+so a 70/15/15 temporal split of the fixture mirrors the split of the real
+corpus. Output ~60K rows, a few MB, committed to git (data/ itself is
+gitignored; this is what makes fast tests portable).
 """
 from __future__ import annotations
 
@@ -14,15 +23,15 @@ from pathlib import Path
 
 import pandas as pd
 
-from ml.config import ENGINEERED_PARQUET, QUANTUM_PART_PARQUET, SEED
+from ml.config import ENGINEERED_PARQUET, QUANTUM_PART_PARQUET
 from ml.data import needed_columns
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 MINI_EVENTS = FIXTURES / "mini_events.parquet"
 MINI_QPART = FIXTURES / "mini_quantum_part.parquet"
 
-HEAD_TAIL = 1500
-EXTRA_POS = 1000
+TARGET_ROWS = 3000     # systematic sample size per source
+EXTRA_POS = 1000       # additional evenly-spaced positives per source
 
 
 def main() -> None:
@@ -32,11 +41,14 @@ def main() -> None:
 
     parts = []
     for _, g in df.groupby("source_dataset", observed=True):
-        chunk = pd.concat([g.head(HEAD_TAIL), g.tail(HEAD_TAIL)])
+        step = max(1, len(g) // TARGET_ROWS)
+        chunk = g.iloc[::step]                       # spread across the timeline
         pos = g[g["label"] == 1]
         if len(pos):
-            chunk = pd.concat([chunk, pos.sample(min(EXTRA_POS, len(pos)),
-                                                 random_state=SEED)])
+            # Evenly spaced, not random: guarantees positives in every temporal
+            # third, hence in train AND val AND test.
+            pstep = max(1, len(pos) // EXTRA_POS)
+            chunk = pd.concat([chunk, pos.iloc[::pstep]])
         parts.append(chunk.drop_duplicates(subset="event_id"))
     mini = (pd.concat(parts)
             .sort_values(["event_time", "event_id"], kind="mergesort")
