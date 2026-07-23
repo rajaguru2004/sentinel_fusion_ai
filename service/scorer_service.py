@@ -11,7 +11,11 @@ import pandas as pd
 
 from ml.predict import SentinelScorer
 
-_P_COLS = ["p_fraud", "p_cyber", "p_behaviour", "p_quantum"]
+_P_COLS = ["p_fraud_payment", "p_fraud_application", "p_cyber",
+           "p_behaviour", "p_quantum"]
+# Deprecated single-fraud field: mirrors whichever head fired so existing bank
+# clients keep working through the v2 split. See schemas.Contributions.
+_LEGACY_FRAUD_SRC = ["p_fraud_payment", "p_fraud_application"]
 
 
 def _clean(v: Any) -> Any:
@@ -41,6 +45,10 @@ class ScorerService:
         out = self.scorer.score_events(df)
         rows: list[dict[str, Any]] = []
         for i, (_, r) in enumerate(out.iterrows()):
+            contrib = {c: _clean(r.get(c)) for c in _P_COLS}
+            contrib["p_fraud"] = next(
+                (contrib[c] for c in _LEGACY_FRAUD_SRC if contrib.get(c) is not None),
+                None)
             rows.append({
                 "event_id": events[i].get("event_id"),
                 "model": _clean(r["model"]),
@@ -49,7 +57,7 @@ class ScorerService:
                 "risk_score": float(r["risk_score"]),
                 "risk_level": str(r["risk_level"]),
                 "scored": bool(r["scored"]),
-                "contributions": {c: _clean(r.get(c)) for c in _P_COLS},
+                "contributions": contrib,
                 "model_version": self.version,
             })
         return rows

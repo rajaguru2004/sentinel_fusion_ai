@@ -43,6 +43,47 @@ class EventIn(BaseModel):
     # folds into device high-severity history for FUTURE events.
     severity: int | None = None
 
+    # ------------------------------------------------------ banking block ----
+    # Canonical banking fields (docs/canonical_schema.md). Requirements doc §3.3:
+    # the bank already computes high-signal context that v1 discarded, because
+    # `extra="forbid"` rejected anything not listed here. These are now trained
+    # features of `fraud_payment`, so sending them materially changes the score.
+    counterparty_id: str | None = None
+    counterparty_country: str | None = None
+    counterparty_is_new: int | None = None
+    counterparty_age_s: float | None = None      # bank: beneficiaryAgeMinutes * 60
+    name_mismatch: int | None = None             # bank: nameMismatch
+    balance_before: float | None = None
+    balance_after: float | None = None
+    counterparty_balance_before: float | None = None
+    counterparty_balance_after: float | None = None
+    customer_age: float | None = None
+    account_age_s: float | None = None
+    income: float | None = None
+    channel: str | None = None
+    device_os: str | None = None
+    device_is_new: int | None = None
+    session_length_s: float | None = None
+    is_foreign_request: int | None = None
+    email_is_free: int | None = None
+    merchant_id: str | None = None
+    merchant_category: str | None = None
+    geo_lat: float | None = None
+    geo_lon: float | None = None
+    counterparty_lat: float | None = None
+    counterparty_lon: float | None = None
+    currency: str | None = None
+    payment_type: str | None = None
+    is_credit: int | None = None
+
+    # Bank-computed signals. Precedence (docs/canonical_schema.md): a
+    # store-computed f_* wins when non-NaN; these are trained features in their
+    # own right AND the fallback seed when the feature store is cold.
+    bank_txn_count_1h: float | None = None        # bank: txnCountLastHour
+    bank_amount_vs_user_mean: float | None = None # bank: amountVsUserMean
+    bank_beneficiary_age_s: float | None = None   # bank: beneficiaryAgeMinutes * 60
+    bank_is_new_beneficiary: int | None = None    # bank: isNewBeneficiary
+
     # quantum native attributes (supply when event_domain == "quantum")
     q_key_exchange: str | None = None
     q_cert_key_type: str | None = None
@@ -59,16 +100,40 @@ class EventIn(BaseModel):
 
 
 class Contributions(BaseModel):
-    """Per-domain calibrated risk contributions (None if that domain didn't fire)."""
-    p_fraud: float | None = None
+    """Per-model calibrated risk contributions (None if that model didn't fire).
+
+    Schema v2 split the single fraud model into two heads, so the financial
+    domain now reports through `p_fraud_payment` or `p_fraud_application`.
+    `p_fraud` is kept as a deprecated mirror of whichever fraud head scored the
+    event, so an existing bank client keeps working without a coordinated
+    release. It will be removed once FinSpark reads the explicit fields.
+    """
+    p_fraud: float | None = None            # DEPRECATED -> p_fraud_payment
+    p_fraud_payment: float | None = None
+    p_fraud_application: float | None = None
     p_cyber: float | None = None
     p_behaviour: float | None = None
     p_quantum: float | None = None
 
 
+class DegradedDetail(BaseModel):
+    """Which feature groups were unavailable, and why (requirements §4.1).
+
+    A single boolean could not tell "this customer is brand new" apart from
+    "Redis was down", but the bank should treat those very differently: the
+    first is a normal cold-start, the second means fall back to the heuristic.
+    """
+    degraded: bool = False              # any group missing (legacy meaning)
+    store_unavailable: bool = False     # feature store timed out / errored
+    user_history: bool = False          # no prior events for this user
+    device_history: bool = False        # no prior events for this device
+    bank_context_used: bool = False     # a bank_* value seeded a missing f_*
+
+
 class Explanation(BaseModel):
     model: str
     top_features: list["FeatureAttribution"]
+    reasons: list[str] = []            # plain language, §4.2
 
 
 class FeatureAttribution(BaseModel):
@@ -88,7 +153,10 @@ class ScoreOut(BaseModel):
     scored: bool
     contributions: Contributions
     model_version: str
+    # Kept as a plain bool for one release so existing bank clients need no
+    # coordinated change; `degradation` carries the per-group breakdown.
     degraded: bool = False       # True when scored without live feature-store state
+    degradation: DegradedDetail = DegradedDetail()
     explanation: Explanation | None = None
 
 
@@ -99,6 +167,14 @@ class BatchIn(BaseModel):
 
 class BatchOut(BaseModel):
     results: list[ScoreOut]
+
+
+class IngestOut(BaseModel):
+    """§3.1 fire-and-forget result. `rejected` counts events whose state could
+    not be advanced because the store was unavailable — they are safe to retry
+    (the event_id guard makes a duplicate a no-op)."""
+    accepted: int
+    rejected: int = 0
 
 
 class FeedbackIn(BaseModel):
@@ -113,6 +189,17 @@ class FeedbackOut(BaseModel):
     applied: bool                # False when this event_id was already recorded
 
 
+class FeedbackBatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    items: list[FeedbackIn] = Field(min_length=1)
+
+
+class FeedbackBatchOut(BaseModel):
+    results: list[FeedbackOut]
+    applied: int
+    duplicates: int
+
+
 class HealthOut(BaseModel):
     status: str = "ok"
 
@@ -124,6 +211,11 @@ class ReadyOut(BaseModel):
     scorer_loaded: bool
     store_ok: bool
     model_version: str
+    # Feature-contract fingerprint the loaded bundles were trained under. Lets a
+    # deploy check confirm the running code and artifacts agree.
+    contract_hash: str = "unknown"
+    # closed = healthy, degraded = recent faults, open = store calls skipped (§5.2)
+    store_breaker: str = "unknown"
 
 
 Explanation.model_rebuild()

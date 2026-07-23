@@ -35,11 +35,39 @@ image. `/health`, `/ready`, `/metrics` are unauthenticated for orchestrators.
 | Method | Path | Purpose |
 |---|---|---|
 | GET  | `/health` | liveness (always 200) |
-| GET  | `/ready` | readiness (503 until scorer loaded + store reachable) |
-| POST | `/score` | score one event (`?explain=true` for SHAP) |
+| GET  | `/ready` | readiness (503 until scorer loaded + store reachable); reports `contract_hash` |
+| POST | `/score` | score one event (`?explain=true` for SHAP + plain-language reasons) |
 | POST | `/score/batch` | score up to `SENTINEL_MAX_BATCH` events |
-| POST | `/feedback` | confirm an event's true label (updates risk history) |
+| POST | `/ingest` | **build history without scoring** — 202, no inference |
+| POST | `/ingest/batch` | bulk context events |
+| POST | `/feedback` | confirm an event's true label |
+| POST | `/feedback/batch` | bulk adjudication backfill |
 | GET  | `/metrics` | Prometheus metrics |
+
+### Which endpoint for which bank event
+
+`/score` costs model inference; `/ingest` does not. Both advance the customer's
+history, and history is what makes velocity and amount-vs-normal features work —
+so **stream context events even though they need no verdict**.
+
+| FinSpark event | endpoint | routed model |
+|---|---|---|
+| payment initiation | `/score` | `fraud_payment` |
+| card purchase | `/score` | `fraud_payment` |
+| account opening | `/score` | `fraud_application` |
+| login | `/score` | `behaviour` |
+| beneficiary add / activate | `/ingest` | — |
+| balance check, statement view | `/ingest` | — |
+
+Without the `/ingest` stream the store stays empty, every payment scores with
+`degradation.user_history = true`, and velocity never fires.
+
+## Idempotency
+
+`event_id` is the idempotency key for `/score`, `/score/batch` and `/ingest`. A
+retry returns the same features and advances the customer's counters **exactly
+once** — without this a network retry double-counts velocity and corrupts every
+later score for that customer. Retry freely.
 
 ## Score one event
 
@@ -89,16 +117,61 @@ Notes:
   history for future events.
 - `event_domain: threat_intel` is not modelled → returns `scored=false`, risk `0/low`.
 
+### Banking fields (schema v2)
+
+The bank's own context signals are now accepted **and trained on** — v1 rejected
+them outright (`extra="forbid"`) and the model never saw them:
+
+`counterparty_id`, `counterparty_country`, `counterparty_is_new`,
+`counterparty_age_s`, `name_mismatch`, `balance_before`, `balance_after`,
+`counterparty_balance_before/after`, `customer_age`, `account_age_s`, `income`,
+`channel`, `device_os`, `device_is_new`, `session_length_s`,
+`is_foreign_request`, `email_is_free`, `merchant_id`, `merchant_category`,
+`geo_lat/lon`, `counterparty_lat/lon`, `currency`, `payment_type`, `is_credit`.
+
+Plus the bank-computed block (§3.3), mapped from FinSpark's own names:
+
+| send | FinSpark field |
+|---|---|
+| `bank_txn_count_1h` | `txnCountLastHour` |
+| `bank_amount_vs_user_mean` | `amountVsUserMean` |
+| `bank_beneficiary_age_s` | `beneficiaryAgeMinutes` × 60 |
+| `bank_is_new_beneficiary` | `isNewBeneficiary` |
+
+**Precedence:** a store-computed `f_*` wins whenever it is available; the `bank_*`
+value seeds the equivalent when the store is cold or unreachable. Send both — the
+`bank_*` fields are independent trained features, not just a fallback.
+
 ### Output fields
 
 - `risk_score` ∈ [0,1], `risk_level` ∈ {low, medium, high, critical}.
-- `model` — which specialist scored it; `null` when unscored.
-- `contributions` — per-domain calibrated probabilities feeding the fused score.
-- `degraded` — `true` if the feature store was unreachable and the event was scored
-  on event-only features (still a valid, finite score, just without behavioural
-  history). Safe to alert on for observability.
-- `explanation` — present only with `?explain=true`: the top SHAP feature
-  attributions for the routed model.
+- `model` — which specialist scored it (`fraud_payment`, `fraud_application`,
+  `cyber`, `behaviour`, `quantum`); `null` when unscored.
+- `contributions` — per-model calibrated probabilities. `p_fraud` is a
+  **deprecated** mirror of whichever fraud head fired; read `p_fraud_payment` /
+  `p_fraud_application`.
+- `degradation` — per-group breakdown (§4.1), so the bank can tell a normal
+  cold-start from an incident:
+
+  | field | meaning | action |
+  |---|---|---|
+  | `store_unavailable` | feature store timed out / errored | **alert**; consider the heuristic fallback |
+  | `user_history` | no prior events for this customer | normal for a new customer; stream `/ingest` |
+  | `device_history` | no prior events for this device | normal for a new device |
+  | `bank_context_used` | a `bank_*` value filled a missing `f_*` | informational |
+
+  `degraded` (plain bool) is kept for one release as the legacy mirror.
+- `explanation` — with `?explain=true`: `top_features` (SHAP, machine-readable)
+  and `reasons` (plain language for the analyst feed), e.g.
+  `["amount is far outside this customer's usual range", "first ever payment to
+  this beneficiary"]`. `reasons` is empty when nothing notable fired — benign
+  traffic gets no invented narrative.
+
+> **Risk bands.** A calibrated model at a realistic fraud base rate rarely
+> produces scores above 0.25, so the fixed `<.25` low / `<.50` medium cut points
+> will report most traffic as `low` even when a score is a large *lift* over the
+> base rate. Band thresholds should be recalibrated on FinSpark traffic — see
+> `reports/ml/MODELS.md` and requirements §4.3.
 
 ## Batch
 

@@ -1,0 +1,41 @@
+{
+  "dataset": "sparkov",
+  "rows": 1852394,
+  "columns": 25,
+  "memory_mb": 611.5,
+  "duplicate_rows": 0,
+  "missing_by_column": {},
+  "dtypes": {
+    "trans_date_trans_time": "datetime64[us, UTC]",
+    "cc_num": "int64",
+    "merchant": "str",
+    "category": "str",
+    "amt": "float64",
+    "first": "str",
+    "last": "str",
+    "gender": "str",
+    "street": "str",
+    "city": "str",
+    "state": "str",
+    "zip": "int64",
+    "lat": "float64",
+    "long": "float64",
+    "city_pop": "int64",
+    "job": "str",
+    "dob": "datetime64[us]",
+    "trans_num": "str",
+    "unix_time": "int64",
+    "merch_lat": "float64",
+    "merch_long": "float64",
+    "is_fraud": "int64",
+    "channel": "str",
+    "customer_age": "float64",
+    "geo_distance_km": "float64"
+  },
+  "notes": "CC0-1.0. Real per-card sequences (median 1471 txns/card) \u2014 the only public financial source in this corpus with usable user history. geo distance carries no fraud signal (76.1 vs 76.3 km).",
+  "label_distribution": {
+    "0": 1842743,
+    "1": 9651
+  },
+  "imbalance_ratio": 190.94
+}

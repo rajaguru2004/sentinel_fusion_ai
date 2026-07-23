@@ -1,5 +1,5 @@
 {
-  "rows_total": 2043664,
+  "rows_total": 4006719,
   "fractions": {
     "train": 0.7,
     "val": 0.15,
@@ -112,6 +112,21 @@
       "positives": 1,
       "unlabeled": 0
     },
+    "finspark_synth/test": {
+      "rows": 16600,
+      "positives": 41,
+      "unlabeled": 8290
+    },
+    "finspark_synth/train": {
+      "rows": 77462,
+      "positives": 206,
+      "unlabeled": 38068
+    },
+    "finspark_synth/val": {
+      "rows": 16599,
+      "positives": 51,
+      "unlabeled": 8185
+    },
     "malicious_urls/test": {
       "rows": 44949,
       "positives": 22437,
@@ -185,6 +200,21 @@
     "rba/val": {
       "rows": 45097,
       "positives": 22809,
+      "unlabeled": 0
+    },
+    "sparkov/test": {
+      "rows": 277860,
+      "positives": 924,
+      "unlabeled": 0
+    },
+    "sparkov/train": {
+      "rows": 1296675,
+      "positives": 7506,
+      "unlabeled": 0
+    },
+    "sparkov/val": {
+      "rows": 277859,
+      "positives": 1221,
       "unlabeled": 0
     },
     "unsw_nb15/test": {

@@ -7,58 +7,57 @@
     "test": 45098
   },
   "positive_rate_train": 0.4864,
-  "threshold_val_maxF1": 0.366164,
+  "threshold_val_maxF1": 0.488841,
   "test": {
-    "accuracy": 0.7812,
-    "precision": 0.7326,
-    "recall": 0.9531,
-    "f1": 0.8285,
-    "roc_auc": 0.8167,
+    "accuracy": 0.6567,
+    "precision": 0.631,
+    "recall": 0.9168,
+    "f1": 0.7476,
+    "roc_auc": 0.7033,
     "confusion_matrix": {
-      "tn": 11400.0,
-      "fp": 8696.0,
-      "fn": 1172.0,
-      "tp": 23830.0
+      "tn": 6693.0,
+      "fp": 13403.0,
+      "fn": 2079.0,
+      "tp": 22923.0
     }
   },
   "test_population_weighted": {
-    "accuracy": 0.8355,
-    "precision": 0.8339,
-    "recall": 0.9531,
-    "f1": 0.8895,
-    "roc_auc": 0.8167,
+    "accuracy": 0.7388,
+    "precision": 0.7581,
+    "recall": 0.9168,
+    "f1": 0.8299,
+    "roc_auc": 0.7033,
     "confusion_matrix": {
-      "tn": 128465.53599998234,
-      "fp": 97994.41237332179,
-      "fn": 24198.21367999967,
-      "tp": 492016.580200121
+      "tn": 75422.79231999298,
+      "fp": 151037.15605331116,
+      "fn": 42924.988259998514,
+      "tp": 473289.80562011554
     }
   },
   "latency": {
     "single_row_ms": {
-      "mean": 0.589,
-      "p50": 0.586,
-      "p95": 0.612
+      "mean": 0.75,
+      "p50": 0.723,
+      "p95": 0.889
     },
     "batch_rows": 10000,
-    "batch_rows_per_sec": 9356707
+    "batch_rows_per_sec": 7072946
   },
-  "best_iteration": 12,
+  "single_feature_leak_audit": [],
+  "best_iteration": 21,
   "shap_top_features": {
-    "country": 0.75473,
-    "f_user_past_malicious_rate": 0.09201,
-    "f_device_past_hisev_count": 0.08884,
-    "f_user_seq_no": 0.06777,
-    "f_device_seq_no": 0.03767,
-    "event_subtype": 0.02918,
-    "f_hour": 0.01897,
-    "duration_s": 0.01175,
-    "f_is_night": 0.00982,
-    "f_hour_cos": 0.00761,
-    "f_user_secs_since_last": 0.00493,
-    "f_user_new_country": 0.00226,
-    "f_hour_sin": 0.00159,
-    "f_dayofweek": 0.00055,
-    "f_is_weekend": 0.0
+    "f_device_seq_no": 0.50967,
+    "f_user_secs_since_last": 0.20719,
+    "f_user_seq_no": 0.20629,
+    "event_subtype": 0.16845,
+    "f_hour": 0.13469,
+    "duration_s": 0.06084,
+    "f_user_new_country": 0.02034,
+    "f_is_night": 0.01602,
+    "f_hour_cos": 0.0112,
+    "f_dayofweek": 0.01084,
+    "f_hour_sin": 0.0031,
+    "f_is_weekend": 0.00217,
+    "event_type": 0.0
   }
 }

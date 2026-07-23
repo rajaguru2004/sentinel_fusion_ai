@@ -1,30 +1,31 @@
 {
   "weights": {
-    "fraud": 1.0,
+    "fraud_payment": 1.0,
+    "fraud_application": 1.0,
     "cyber": 1.0,
     "behaviour": 0.7,
     "quantum": 0.9
   },
   "calibration": "isotonic per model, fitted on validation",
   "combiner": "weighted noisy-OR: 1 - prod(1 - w_i * p_i)",
-  "test_events_fused": 250597,
-  "cross_domain_roc_auc_labeled_test": 0.9717,
+  "test_events_fused": 498726,
+  "cross_domain_roc_auc_labeled_test": 0.989,
   "risk_level_distribution": {
-    "low": 177199,
-    "critical": 34456,
-    "high": 31181,
-    "medium": 7761
+    "low": 382011,
+    "critical": 64346,
+    "high": 47064,
+    "medium": 5305
   },
   "example_multi_signal": {
     "input": {
-      "fraud": 0.92,
+      "fraud_payment": 0.92,
       "behaviour": 0.1
     },
     "output": {
-      "risk_score": 0.3615,
-      "risk_level": "medium",
+      "risk_score": 0.3636,
+      "risk_level": "critical",
       "contributions": {
-        "fraud": 0.3615,
+        "fraud_payment": 0.3636,
         "behaviour": 0.0
       }
     }

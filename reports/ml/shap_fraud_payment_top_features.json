@@ -1,0 +1,21 @@
+{
+  "model": "fraud_payment",
+  "sample_rows": 2000,
+  "mean_abs_shap_top15": {
+    "amount": 2.40906,
+    "merchant_category": 1.03564,
+    "f_user_distinct_counterparties": 0.78278,
+    "f_hour_cos": 0.73985,
+    "f_log1p_amount": 0.71965,
+    "f_amount_ratio_mean": 0.44237,
+    "f_hour": 0.4166,
+    "f_user_secs_since_last": 0.37159,
+    "f_amount_z_user": 0.29386,
+    "customer_age": 0.25192,
+    "f_hour_sin": 0.18741,
+    "f_user_seq_no": 0.14833,
+    "channel": 0.09043,
+    "f_geo_distance_km": 0.07247,
+    "bank_txn_count_1h": 0.0588
+  }
+}

@@ -94,14 +94,36 @@ u = pd.DataFrame({
     "event_subtype": "application",
     "amount": df["proposed_credit_limit"],
     "duration_s": df["session_length_in_minutes"] * 60,
-    "severity": np.where(df["fraud_bool"] == 1, 3, 0).astype("int8"),
+    # v2 rule: severity is ex-ante triage, never a function of label (v1 set
+    # `3 if fraud_bool else 0`, agreement 1.0000 with the target).
+    "severity": np.int8(0),
     "label": df["fraud_bool"].astype("Int8"),
     "time_is_synthetic": True,
+    # --- canonical banking block (promoted out of `attributes`) ---
+    "income": df["income"],
+    "customer_age": df["customer_age"],
+    "device_os": df["device_os"].astype(str),
+    "email_is_free": df["email_is_free"].astype("Int8"),
+    "is_foreign_request": df["foreign_request"].astype("Int8"),
+    "session_length_s": df["session_length_in_minutes"] * 60,
+    # bank_months_count = months the customer has held an account with the bank
+    "account_age_s": df["bank_months_count"] * 30.0 * 86400.0,
+    "channel": "web",
 })
-attr_cols = ["income", "customer_age", "employment_status", "payment_type", "housing_status",
+# Source-local -- deliberately NOT promoted:
+#   payment_type / employment_status / housing_status : anonymized codes ('AA',
+#     'CB', 'BA') with no published mapping. BAF's `payment_type` is NOT the same
+#     semantic as FinSpark's, so promoting it would silently merge two different
+#     variables into one canonical column.
+#   credit_risk_score / velocity_6h|24h|4w : bureau + velocity aggregates on an
+#     undisclosed scale. The *concept* is reproduced servably by bank_txn_count_1h
+#     and the store-computed velocity features instead.
+#   phone_*_valid / keep_alive_session : plausible bank fields, but absent from
+#     the FinSpark export contract -- promote them only once the bank sends them.
+attr_cols = ["employment_status", "payment_type", "housing_status",
              "credit_risk_score", "velocity_6h", "velocity_24h", "velocity_4w",
-             "device_os", "email_is_free", "foreign_request", "keep_alive_session",
-             "phone_home_valid", "phone_mobile_valid", "month"]
+             "keep_alive_session", "phone_home_valid", "phone_mobile_valid",
+             "bank_months_count", "month"]
 u[attr_cols] = df[attr_cols]
 u = to_unified(u, source_dataset="baf", event_domain="financial",
                event_type="account_open", label_type="fraud", attributes_cols=attr_cols)

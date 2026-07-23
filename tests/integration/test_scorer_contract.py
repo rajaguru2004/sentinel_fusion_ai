@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-OUT_COLS = {"model", "raw_score", "p_fraud", "p_cyber", "p_behaviour",
+OUT_COLS = {"model", "raw_score", "p_fraud_payment", "p_fraud_application",
+            "p_cyber", "p_behaviour",
             "p_quantum", "risk_score", "risk_level", "scored"}
 LEVELS = {"low", "medium", "high", "critical"}
 
@@ -23,7 +24,7 @@ def test_missing_event_domain_clean_error(scorer):
 
 
 @pytest.mark.parametrize("domain,expected_model", [
-    ("financial", "fraud"), ("cyber", "cyber"),
+    ("financial", "fraud_payment"), ("cyber", "cyber"),
     ("behaviour", "behaviour"), ("quantum", "quantum")])
 def test_single_row_routing(scorer, fixture_frame, domain, expected_model):
     out = scorer.score_events(_domain_rows(fixture_frame, domain))

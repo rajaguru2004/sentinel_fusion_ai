@@ -130,6 +130,13 @@ attr_cols = ["region", "city", "asn", "browser_name_and_version", "os_name_and_v
 attr_cols = [c for c in attr_cols if c in clean.columns]
 u[attr_cols] = clean[attr_cols]
 u = to_unified(u, source_dataset="rba", event_domain="behaviour",
-               event_type="login", label_type="account_takeover", attributes_cols=attr_cols)
+               event_type="login", label_type="account_takeover", attributes_cols=attr_cols,
+               label_alias_exempt={"severity": (
+                   "v1 mapping: severity is 4/3 exactly when is_account_takeover/is_attack_ip "
+                   "is set, and label_bin is their disjunction -- so severity>=3 iff label==1 "
+                   "(measured balanced accuracy 1.0000). Harmless for the v2 behaviour rebuild "
+                   "because f_device_past_hisev_count is dropped from the behaviour contract, "
+                   "so no feature reads severity. Re-map to ex-ante triage if rba is ever used "
+                   "for a model that consumes device history.")})
 save_unified_part(u, "rba")
 u.head(3)

@@ -1,0 +1,76 @@
+{
+  "model": "fraud_payment",
+  "library": "xgboost",
+  "rows": {
+    "train": 1336069,
+    "val": 286273,
+    "test": 286170
+  },
+  "positive_rate_train": 0.0058,
+  "threshold_val_maxF1": 0.92285,
+  "test": {
+    "accuracy": 0.9989,
+    "precision": 0.8629,
+    "recall": 0.8021,
+    "f1": 0.8314,
+    "roc_auc": 0.9981,
+    "confusion_matrix": {
+      "tn": 285082.0,
+      "fp": 123.0,
+      "fn": 191.0,
+      "tp": 774.0
+    }
+  },
+  "test_population_weighted": {
+    "accuracy": 0.9989,
+    "precision": 0.8629,
+    "recall": 0.8021,
+    "f1": 0.8314,
+    "roc_auc": 0.9981,
+    "confusion_matrix": {
+      "tn": 285082.0,
+      "fp": 123.0,
+      "fn": 191.0,
+      "tp": 774.0
+    }
+  },
+  "latency": {
+    "single_row_ms": {
+      "mean": 2.573,
+      "p50": 2.55,
+      "p95": 3.109
+    },
+    "batch_rows": 10000,
+    "batch_rows_per_sec": 1903951
+  },
+  "single_feature_leak_audit": [
+    {
+      "source": "finspark_synth",
+      "feature": "bank_txn_count_1h",
+      "auc": 1.0
+    },
+    {
+      "source": "finspark_synth",
+      "feature": "f_amount_ratio_mean",
+      "auc": 0.99008
+    }
+  ],
+  "best_iteration": 124,
+  "shap_top_features": {
+    "amount": 2.40906,
+    "merchant_category": 1.03564,
+    "f_user_distinct_counterparties": 0.78278,
+    "f_hour_cos": 0.73985,
+    "f_log1p_amount": 0.71965,
+    "f_amount_ratio_mean": 0.44237,
+    "f_hour": 0.4166,
+    "f_user_secs_since_last": 0.37159,
+    "f_amount_z_user": 0.29386,
+    "customer_age": 0.25192,
+    "f_hour_sin": 0.18741,
+    "f_user_seq_no": 0.14833,
+    "channel": 0.09043,
+    "f_geo_distance_km": 0.07247,
+    "bank_txn_count_1h": 0.0588
+  }
+}

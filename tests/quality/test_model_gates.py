@@ -28,12 +28,14 @@ def current(real_artifacts):
     return json.loads(p.read_text())
 
 
-@pytest.mark.parametrize("key", ["fraud", "cyber", "behaviour", "quantum"])
+@pytest.mark.parametrize("key", ["fraud_payment", "fraud_application",
+                                 "cyber", "behaviour", "quantum"])
 def test_auc_floor(floors, current, key):
     assert current[key]["test"]["roc_auc"] >= floors[key]["roc_auc"]["min"]
 
 
-@pytest.mark.parametrize("key", ["fraud", "cyber", "behaviour", "quantum"])
+@pytest.mark.parametrize("key", ["fraud_payment", "fraud_application",
+                                 "cyber", "behaviour", "quantum"])
 def test_f1_floor(floors, current, key):
     assert current[key]["test"]["f1"] >= floors[key]["f1"]["min"]
 
@@ -44,5 +46,5 @@ def test_fusion_auc_floor(floors, current):
 
 
 def test_thresholds_sane(current):
-    for key in ["fraud", "cyber", "quantum"]:
+    for key in ["fraud_payment", "fraud_application", "cyber", "quantum"]:
         assert 0.0 < current[key]["threshold_val_maxF1"] < 1.0, key
