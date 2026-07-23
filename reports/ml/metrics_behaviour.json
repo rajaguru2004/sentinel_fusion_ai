@@ -36,12 +36,12 @@
   },
   "latency": {
     "single_row_ms": {
-      "mean": 0.736,
-      "p50": 0.734,
-      "p95": 0.765
+      "mean": 0.589,
+      "p50": 0.586,
+      "p95": 0.612
     },
     "batch_rows": 10000,
-    "batch_rows_per_sec": 8202597
+    "batch_rows_per_sec": 9356707
   },
   "best_iteration": 12,
   "shap_top_features": {

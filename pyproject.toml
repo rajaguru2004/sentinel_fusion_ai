@@ -20,8 +20,8 @@ dependencies = [
 
 [project.optional-dependencies]
 train = ["shap", "matplotlib"]
-serve = ["fastapi", "uvicorn", "prometheus-client"]
-dev = ["pytest", "ruff", "httpx", "psutil"]
+serve = ["fastapi", "uvicorn[standard]", "prometheus-client", "pydantic-settings", "redis>=5.0"]
+dev = ["pytest", "ruff", "httpx", "psutil", "pytest-asyncio", "fakeredis"]
 notebooks = ["jupyterlab", "notebook", "ipykernel", "kaggle", "python-dotenv"]
 
 [tool.setuptools]
@@ -30,6 +30,7 @@ packages = ["ml", "ml.experiments", "service"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not slow and not quality and not perf' --strict-markers -q"
+asyncio_mode = "auto"
 markers = [
     "slow: loads the full 2M-row parquet",
     "quality: needs real trained models/ + full data (model accuracy gates)",
