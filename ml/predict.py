@@ -14,7 +14,7 @@ from __future__ import annotations
 import joblib
 import pandas as pd
 
-from .config import DOMAIN_OF_MODEL, MODELS
+from .config import DOMAIN_OF_MODEL, MODELS, route
 from .features import CategoryEncoder, build_matrix, impute
 
 REQUIRED_COLUMNS = ["event_domain"]
@@ -40,8 +40,16 @@ class SentinelScorer:
         scores = pd.DataFrame(index=events.index,
                               columns=list(DOMAIN_OF_MODEL), dtype="float64")
         if len(events):
-            for key, domain in DOMAIN_OF_MODEL.items():
-                rows = events[events["event_domain"] == domain]
+            # Route on (event_domain, event_type): the financial domain has two
+            # heads. v1 routed on domain alone, which forced one fraud model to
+            # serve payments and account applications at once.
+            et = (events["event_type"] if "event_type" in events.columns
+                  else pd.Series([None] * len(events), index=events.index))
+            routed = [route(d, t) for d, t in zip(events["event_domain"], et,
+                                                  strict=True)]
+            routed = pd.Series(routed, index=events.index)
+            for key in DOMAIN_OF_MODEL:
+                rows = events[routed == key]
                 if rows.empty:
                     continue
                 b = self.bundles[key]

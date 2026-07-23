@@ -32,7 +32,7 @@ def test_score_rejects_bad_key(client, sample_events):
 
 # ---------------------------------------------------------------- contract ----
 @pytest.mark.parametrize("domain,expected_model", [
-    ("financial", "fraud"), ("cyber", "cyber"),
+    ("financial", "fraud_payment"), ("cyber", "cyber"),
     ("behaviour", "behaviour"), ("quantum", "quantum")])
 def test_routing_and_contract(client, auth, sample_events, domain, expected_model):
     r = client.post("/score", json=sample_events[domain], headers=auth)
@@ -43,7 +43,9 @@ def test_routing_and_contract(client, auth, sample_events, domain, expected_mode
     assert body["scored"] is True
     assert 0.0 <= body["risk_score"] <= 1.0
     assert body["risk_level"] in LEVELS
-    assert set(body["contributions"]) == {"p_fraud", "p_cyber", "p_behaviour", "p_quantum"}
+    assert set(body["contributions"]) == {
+        "p_fraud", "p_fraud_payment", "p_fraud_application",
+        "p_cyber", "p_behaviour", "p_quantum"}
 
 
 def test_threat_intel_unscored(client, auth, sample_events):
@@ -92,7 +94,7 @@ def test_batch_mixed_domains(client, auth, sample_events):
     results = r.json()["results"]
     assert len(results) == 5
     models = [x["model"] for x in results]
-    assert models == ["fraud", "cyber", "behaviour", "quantum", None]
+    assert models == ["fraud_payment", "cyber", "behaviour", "quantum", None]
 
 
 def test_batch_empty_rejected(client, auth):
@@ -157,3 +159,22 @@ def test_degraded_when_store_down(client, auth, sample_events, monkeypatch):
     assert body["degraded"] is True
     assert body["scored"] is True                 # still finite, GBM-safe
     assert 0.0 <= body["risk_score"] <= 1.0
+
+
+def test_explanation_uses_the_same_model_that_scored(client, auth):
+    """Explainer routing must match scorer routing.
+
+    Regression: service/explain.py inverted DOMAIN_OF_MODEL to map domain->model.
+    With two heads sharing "financial" the later key wins, so every financial
+    event was explained by `fraud_application` even when `fraud_payment` scored
+    it -- the returned SHAP features belonged to a model the caller never used.
+    """
+    for event_type, expected in [("card_txn", "fraud_payment"),
+                                 ("account_open", "fraud_application")]:
+        body = client.post("/score?explain=true", json={
+            "event_id": f"x-{event_type}", "event_domain": "financial",
+            "event_time": "2026-07-20T09:00:00Z", "event_type": event_type,
+            "amount": 250.0,
+        }, headers=auth).json()
+        assert body["model"] == expected, event_type
+        assert body["explanation"]["model"] == body["model"], event_type

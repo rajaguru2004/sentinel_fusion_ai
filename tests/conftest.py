@@ -13,7 +13,7 @@ from ml.config import ENGINEERED_PARQUET, MODELS
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 MINI_EVENTS = FIXTURES / "mini_events.parquet"
 MINI_QPART = FIXTURES / "mini_quantum_part.parquet"
-MODEL_KEYS = ["fraud", "cyber", "behaviour", "quantum"]
+MODEL_KEYS = ["fraud_payment", "fraud_application", "cyber", "behaviour", "quantum"]
 
 
 @pytest.fixture(scope="session")
@@ -55,6 +55,6 @@ def full_frame() -> pd.DataFrame:
 
 @pytest.fixture(scope="session")
 def real_artifacts() -> Path:
-    if not (MODELS / "fraud_bundle.joblib").exists():
+    if not (MODELS / "fraud_payment_bundle.joblib").exists():
         pytest.skip("trained models/ not present on this machine")
     return MODELS

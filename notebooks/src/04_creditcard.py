@@ -82,12 +82,24 @@ dataset_report(df, "creditcard", label_col="Class",
                notes="PCA-anonymized; Time anchored to 2013-09-01 UTC (documented capture window).")
 
 # %%
+# NOTE (schema v2): under the servability rule in docs/canonical_schema.md this
+# dataset contributes almost nothing. Its entire signal is V1..V28 -- PCA
+# components of undisclosed features that no bank can reconstruct or send to a
+# scoring API -- so they are source-local and stay in `attributes`. What remains
+# canonical is `amount` + timestamp. The part file is still written (corpus
+# completeness, benign amount-distribution reference, drift baseline), but these
+# rows are EXCLUDED from the v2 fraud heads; 150k near-featureless rows at a
+# 0.17% positive rate would only add label noise.
 u = pd.DataFrame({
     "event_time": df["event_time"],
     "amount": df["Amount"],
-    "severity": np.where(df["Class"] == 1, 3, 0).astype("int8"),
+    # v2 rule: severity is ex-ante triage, never a function of label (v1 set
+    # `3 if Class else 0`, agreement 1.0000 with the target).
+    "severity": np.int8(0),
     "label": df["Class"].astype("Int8"),
     "time_is_synthetic": False,
+    "currency": "EUR",          # ULB/Worldline: European cardholders, Sept 2013
+    "payment_type": "card_purchase",
 })
 attr_cols = [f"V{i}" for i in range(1, 29)]
 u[attr_cols] = df[attr_cols].round(6)

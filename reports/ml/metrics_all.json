@@ -1,66 +1,132 @@
 {
-  "fraud": {
-    "model": "fraud",
+  "fraud_payment": {
+    "model": "fraud_payment",
     "library": "xgboost",
     "rows": {
-      "train": 328767,
-      "val": 70451,
-      "test": 70451
+      "train": 1296675,
+      "val": 277859,
+      "test": 277860
     },
-    "positive_rate_train": 0.0338,
-    "threshold_val_maxF1": 0.756222,
+    "positive_rate_train": 0.0058,
+    "threshold_val_maxF1": 0.926237,
     "test": {
-      "accuracy": 0.9141,
-      "precision": 0.5101,
-      "recall": 0.4855,
-      "f1": 0.4975,
-      "roc_auc": 0.838,
+      "accuracy": 0.9987,
+      "precision": 0.8223,
+      "recall": 0.7911,
+      "f1": 0.8064,
+      "roc_auc": 0.9976,
       "confusion_matrix": {
-        "tn": 61408.0,
-        "fp": 2876.0,
-        "fn": 3173.0,
-        "tp": 2994.0
+        "tn": 276778.0,
+        "fp": 158.0,
+        "fn": 193.0,
+        "tp": 731.0
       }
     },
     "test_population_weighted": {
-      "accuracy": 0.9368,
-      "precision": 0.0461,
-      "recall": 0.4855,
-      "f1": 0.0842,
-      "roc_auc": 0.8257,
+      "accuracy": 0.9987,
+      "precision": 0.8223,
+      "recall": 0.7911,
+      "f1": 0.8064,
+      "roc_auc": 0.9976,
       "confusion_matrix": {
-        "tn": 962642.0963600893,
-        "fp": 61921.12821333486,
-        "fn": 3173.0,
-        "tp": 2994.0
+        "tn": 276778.0,
+        "fp": 158.0,
+        "fn": 193.0,
+        "tp": 731.0
       }
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.383,
-        "p50": 1.374,
-        "p95": 1.455
+        "mean": 2.539,
+        "p50": 2.51,
+        "p95": 2.651
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1949036
+      "batch_rows_per_sec": 2252875
     },
-    "best_iteration": 175,
+    "single_feature_leak_audit": [],
+    "best_iteration": 77,
     "shap_top_features": {
-      "amount": 1.10318,
-      "event_type": 0.47698,
-      "f_log1p_amount": 0.36547,
-      "duration_s": 0.29866,
-      "f_hour": 0.29109,
-      "f_dayofweek": 0.16508,
-      "f_hour_sin": 0.10826,
-      "f_hour_cos": 0.07254,
-      "f_user_seq_no": 0.05062,
-      "f_is_night": 0.01915,
-      "f_is_weekend": 0.01013,
-      "f_amount_ratio_mean": 0.0,
-      "f_user_past_malicious_rate": 0.0,
-      "f_user_secs_since_last": 0.0,
-      "f_amount_z_user": 0.0
+      "amount": 2.08096,
+      "merchant_category": 0.76511,
+      "f_hour_cos": 0.71862,
+      "f_log1p_amount": 0.64476,
+      "f_user_distinct_counterparties": 0.48119,
+      "f_amount_ratio_mean": 0.32974,
+      "f_user_secs_since_last": 0.30362,
+      "f_hour": 0.27932,
+      "f_amount_z_user": 0.25271,
+      "f_hour_sin": 0.16064,
+      "customer_age": 0.15465,
+      "f_user_seq_no": 0.1285,
+      "channel": 0.07085,
+      "f_user_txn_count_1h": 0.03102,
+      "f_dayofweek": 0.01289
+    }
+  },
+  "fraud_application": {
+    "model": "fraud_application",
+    "library": "xgboost",
+    "rows": {
+      "train": 112560,
+      "val": 24120,
+      "test": 24120
+    },
+    "positive_rate_train": 0.063,
+    "threshold_val_maxF1": 0.702707,
+    "test": {
+      "accuracy": 0.8827,
+      "precision": 0.3575,
+      "recall": 0.4086,
+      "f1": 0.3814,
+      "roc_auc": 0.7927,
+      "confusion_matrix": {
+        "tn": 20419.0,
+        "fp": 1567.0,
+        "fn": 1262.0,
+        "tp": 872.0
+      }
+    },
+    "test_population_weighted": {
+      "accuracy": 0.9212,
+      "precision": 0.0778,
+      "recall": 0.4086,
+      "f1": 0.1308,
+      "roc_auc": 0.7927,
+      "confusion_matrix": {
+        "tn": 134625.32565996802,
+        "fp": 10331.450380000219,
+        "fn": 1262.0,
+        "tp": 872.0
+      }
+    },
+    "latency": {
+      "single_row_ms": {
+        "mean": 1.476,
+        "p50": 1.464,
+        "p95": 1.539
+      },
+      "batch_rows": 10000,
+      "batch_rows_per_sec": 3516056
+    },
+    "single_feature_leak_audit": [],
+    "best_iteration": 56,
+    "shap_top_features": {
+      "device_os": 0.62179,
+      "account_age_s": 0.37325,
+      "customer_age": 0.32662,
+      "income": 0.31708,
+      "email_is_free": 0.29476,
+      "amount": 0.22666,
+      "duration_s": 0.10402,
+      "f_log1p_amount": 0.04618,
+      "f_dayofweek": 0.02425,
+      "is_foreign_request": 0.02323,
+      "f_hour_cos": 0.02165,
+      "f_hour": 0.02142,
+      "session_length_s": 0.01878,
+      "f_hour_sin": 0.01664,
+      "f_is_weekend": 0.00426
     }
   },
   "cyber": {
@@ -101,27 +167,39 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.776,
-        "p50": 0.771,
-        "p95": 0.803
+        "mean": 0.803,
+        "p50": 0.791,
+        "p95": 0.826
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1908902
+      "batch_rows_per_sec": 1929973
     },
+    "single_feature_leak_audit": [
+      {
+        "source": "beth",
+        "feature": "f_device_past_hisev_count",
+        "auc": 0.99952
+      },
+      {
+        "source": "beth",
+        "feature": "f_user_past_malicious_rate",
+        "auc": 0.99765
+      }
+    ],
     "best_iteration": 188,
     "shap_top_features": {
-      "f_device_past_hisev_count": 4.36064,
+      "f_device_past_hisev_count": 4.37078,
       "dst_port": 2.93236,
-      "f_user_past_malicious_rate": 2.32037,
-      "duration_s": 0.78413,
-      "f_bytes_ratio": 0.60653,
-      "f_hour": 0.49714,
-      "bytes_out": 0.49552,
+      "f_user_past_malicious_rate": 2.32095,
+      "duration_s": 0.77721,
+      "f_bytes_ratio": 0.60652,
+      "f_hour": 0.49919,
+      "bytes_out": 0.49495,
       "f_log1p_bytes_in": 0.4459,
       "f_user_seq_no": 0.4097,
       "f_user_secs_since_last": 0.25021,
-      "f_log1p_bytes_out": 0.23251,
-      "f_device_seq_no": 0.21857,
+      "f_log1p_bytes_out": 0.23169,
+      "f_device_seq_no": 0.22501,
       "f_dayofweek": 0.14473,
       "event_subtype": 0.10945,
       "protocol": 0.10271
@@ -136,59 +214,58 @@
       "test": 45098
     },
     "positive_rate_train": 0.4864,
-    "threshold_val_maxF1": 0.366164,
+    "threshold_val_maxF1": 0.488841,
     "test": {
-      "accuracy": 0.7812,
-      "precision": 0.7326,
-      "recall": 0.9531,
-      "f1": 0.8285,
-      "roc_auc": 0.8167,
+      "accuracy": 0.6567,
+      "precision": 0.631,
+      "recall": 0.9168,
+      "f1": 0.7476,
+      "roc_auc": 0.7033,
       "confusion_matrix": {
-        "tn": 11400.0,
-        "fp": 8696.0,
-        "fn": 1172.0,
-        "tp": 23830.0
+        "tn": 6693.0,
+        "fp": 13403.0,
+        "fn": 2079.0,
+        "tp": 22923.0
       }
     },
     "test_population_weighted": {
-      "accuracy": 0.8355,
-      "precision": 0.8339,
-      "recall": 0.9531,
-      "f1": 0.8895,
-      "roc_auc": 0.8167,
+      "accuracy": 0.7388,
+      "precision": 0.7581,
+      "recall": 0.9168,
+      "f1": 0.8299,
+      "roc_auc": 0.7033,
       "confusion_matrix": {
-        "tn": 128465.53599998234,
-        "fp": 97994.41237332179,
-        "fn": 24198.21367999967,
-        "tp": 492016.580200121
+        "tn": 75422.79231999298,
+        "fp": 151037.15605331116,
+        "fn": 42924.988259998514,
+        "tp": 473289.80562011554
       }
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.589,
-        "p50": 0.586,
-        "p95": 0.612
+        "mean": 0.743,
+        "p50": 0.719,
+        "p95": 0.821
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 9356707
+      "batch_rows_per_sec": 6961049
     },
-    "best_iteration": 12,
+    "single_feature_leak_audit": [],
+    "best_iteration": 21,
     "shap_top_features": {
-      "country": 0.75473,
-      "f_user_past_malicious_rate": 0.09201,
-      "f_device_past_hisev_count": 0.08884,
-      "f_user_seq_no": 0.06777,
-      "f_device_seq_no": 0.03767,
-      "event_subtype": 0.02918,
-      "f_hour": 0.01897,
-      "duration_s": 0.01175,
-      "f_is_night": 0.00982,
-      "f_hour_cos": 0.00761,
-      "f_user_secs_since_last": 0.00493,
-      "f_user_new_country": 0.00226,
-      "f_hour_sin": 0.00159,
-      "f_dayofweek": 0.00055,
-      "f_is_weekend": 0.0
+      "f_device_seq_no": 0.50967,
+      "f_user_secs_since_last": 0.20719,
+      "f_user_seq_no": 0.20629,
+      "event_subtype": 0.16845,
+      "f_hour": 0.13469,
+      "duration_s": 0.06084,
+      "f_user_new_country": 0.02034,
+      "f_is_night": 0.01602,
+      "f_hour_cos": 0.0112,
+      "f_dayofweek": 0.01084,
+      "f_hour_sin": 0.0031,
+      "f_is_weekend": 0.00217,
+      "event_type": 0.0
     }
   },
   "quantum": {
@@ -229,13 +306,14 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.398,
-        "p50": 1.379,
-        "p95": 1.496
+        "mean": 1.443,
+        "p50": 1.427,
+        "p95": 1.556
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 3039892
+      "batch_rows_per_sec": 2873223
     },
+    "single_feature_leak_audit": [],
     "best_iteration": 119,
     "shap_top_features": {
       "q_data_class": 4.24012,
@@ -256,7 +334,7 @@
     }
   },
   "fusion": {
-    "cross_domain_roc_auc": 0.9717,
-    "test_events_fused": 250597
+    "cross_domain_roc_auc": 0.9888,
+    "test_events_fused": 482126
   }
 }

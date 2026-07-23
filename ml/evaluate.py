@@ -50,6 +50,50 @@ def pick_threshold_cost(y: np.ndarray, s: np.ndarray, *, c_fp: float, c_fn: floa
     return best["threshold"], curve
 
 
+SINGLE_FEATURE_AUC_MAX = 0.99
+
+
+def single_feature_auc_audit(X: pd.DataFrame, y: np.ndarray,
+                             source: pd.Series | None = None,
+                             max_auc: float = SINGLE_FEATURE_AUC_MAX) -> list[dict]:
+    """Flag features that on their own almost perfectly rank the label.
+
+    The corpus-level guard in ``prep_utils.assert_no_label_alias`` compares
+    low-cardinality columns by value, so it cannot see an alias that lives in a
+    *continuous* column or in a relationship between several of them. That gap
+    was not hypothetical: promoting PaySim's balance columns out of ``attributes``
+    handed the model the simulator's own fraud rule (balance_before == amount and
+    balance_after == 0 -> fraud, zero false positives), and a head trained on it
+    reported a fake ROC-AUC of 1.0000.
+
+    Ranking power per single feature catches that class of leak. Run per source:
+    an alias usually holds inside one dataset and is diluted when sources are
+    pooled, so a global check can miss what a per-source check finds.
+
+    Returns a list of {source, feature, auc}, worst first. Empty is clean.
+    """
+    findings: list[dict] = []
+    groups = ([("ALL", np.ones(len(y), dtype=bool))] if source is None
+              else [(s, (source == s).to_numpy()) for s in source.unique()])
+    for name, m in groups:
+        if m.sum() < 100:
+            continue
+        yy = y[m]
+        if len(np.unique(yy)) < 2:
+            continue
+        for c in X.columns:
+            col = X.loc[m, c].to_numpy(dtype="float64")
+            ok = ~np.isnan(col)
+            if ok.sum() < 100 or len(np.unique(yy[ok])) < 2:
+                continue
+            auc = roc_auc_score(yy[ok], col[ok])
+            auc = max(auc, 1.0 - auc)      # direction-agnostic
+            if auc >= max_auc:
+                findings.append({"source": str(name), "feature": c,
+                                 "auc": round(float(auc), 5)})
+    return sorted(findings, key=lambda r: -r["auc"])
+
+
 def brier_score(y: np.ndarray, p: np.ndarray) -> float:
     """Mean squared error of calibrated probabilities."""
     return float(np.mean((p - y) ** 2))

@@ -45,10 +45,16 @@ from .config import (
     SEED,
     XGB_PARAMS,
 )
-from .evaluate import compute_metrics, latency_benchmark, pick_threshold
+from .evaluate import (
+    compute_metrics,
+    latency_benchmark,
+    pick_threshold,
+    single_feature_auc_audit,
+)
 from .fusion import RiskFusionEngine
 
-MODEL_LIB = {"fraud": "xgboost", "cyber": "lightgbm",
+MODEL_LIB = {"fraud_payment": "xgboost", "fraud_application": "xgboost",
+             "cyber": "lightgbm",
              "behaviour": ("lightgbm" if BEHAVIOUR_MODEL == "lgbm_supervised"
                            else "isolation_forest"),
              "quantum": "xgboost"}
@@ -89,6 +95,12 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
     else:
         model = T.train_xgb(X_tr, y_tr, X_va, y_va, over)
 
+    # Leak audit BEFORE trusting any metric: a single feature that ranks the
+    # label near-perfectly inside one source is an alias, not a signal.
+    leaks = single_feature_auc_audit(X_tr, y_tr, tr["source_dataset"]) if supervised else []
+    if leaks:
+        print(f"  !! single-feature leak audit flagged {len(leaks)}: {leaks[:5]}")
+
     s_va, s_te = T.score(model, X_va), T.score(model, X_te)
     threshold = pick_threshold(y_va, s_va)
     metrics = {
@@ -99,6 +111,7 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
         "test": compute_metrics(y_te, s_te, threshold),
         "test_population_weighted": compute_metrics(y_te, s_te, threshold, w_te),
         "latency": latency_benchmark(model, X_te),
+        "single_feature_leak_audit": leaks,
     }
     if supervised:
         best_it = getattr(model, "best_iteration", None) or getattr(model, "best_iteration_", None)
@@ -212,7 +225,7 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
     plt.tight_layout(); plt.savefig(reports_dir / "fusion_risk_hist.png", dpi=110)
     plt.close("all")
 
-    example = engine.fuse({"fraud": 0.92, "behaviour": 0.1})
+    example = engine.fuse({"fraud_payment": 0.92, "behaviour": 0.1})
     fusion_report = {
         "weights": FUSION_WEIGHTS,
         "calibration": "isotonic per model, fitted on validation",
@@ -220,7 +233,7 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
         "test_events_fused": int(len(fused)),
         "cross_domain_roc_auc_labeled_test": round(fusion_auc, 4),
         "risk_level_distribution": fused["risk_level"].value_counts().to_dict(),
-        "example_multi_signal": {"input": {"fraud": 0.92, "behaviour": 0.1},
+        "example_multi_signal": {"input": {"fraud_payment": 0.92, "behaviour": 0.1},
                                  "output": example},
     }
     (reports_dir / "fusion_report.json").write_text(json.dumps(fusion_report, indent=2))

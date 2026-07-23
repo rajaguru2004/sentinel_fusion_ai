@@ -1,17 +1,17 @@
 {
-  "full_rows": 25287127,
-  "compact_rows": 2043664,
-  "compact_columns": 24,
+  "full_rows": 27139521,
+  "compact_rows": 3896058,
+  "compact_columns": 55,
   "domains_compact": {
+    "financial": 2322063,
     "cyber": 594865,
-    "financial": 469669,
     "behaviour": 450618,
     "threat_intel": 373044,
     "quantum": 155468
   },
   "label_distribution_compact": {
-    "0": 1130225,
-    "1": 761128,
+    "0": 2972968,
+    "1": 770779,
     "-1": 152311
   },
   "datasets_full": {
@@ -27,8 +27,9 @@
     "paysim": 6362620,
     "quantum_synth": 250000,
     "rba": 4787377,
+    "sparkov": 1852394,
     "unsw_nb15": 145222,
     "urlhaus": 71042
   },
-  "synthetic_time_share_compact": 0.6699
+  "synthetic_time_share_compact": 0.3514
 }

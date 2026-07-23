@@ -1,5 +1,120 @@
 # Sentinel Fusion AI — Model Report
 
+> ## Phase 4 / schema v2 update (2026-07-23)
+>
+> **Corpus rebuilt, fraud model split in two, two datasets dropped for cause.**
+>
+> | model | ROC-AUC | PR-AUC | F1 | Precision | Recall |
+> |---|---:|---:|---:|---:|---:|
+> | `fraud_payment` (was `fraud`) | **0.9976** (0.838) | **0.8700** (0.536) | **0.8064** (0.498) | **0.8223** (0.510) | 0.7911 (0.486) |
+> | `fraud_application` (new) | 0.7927 | 0.3469 | 0.3814 | 0.3575 | 0.4086 |
+> | `cyber` (frozen) | 0.9975 | 0.9961 | 0.9620 | 0.9552 | 0.9690 |
+> | `behaviour` (rebuilt) | **0.7033** (was 0.8167) | 0.7144 | 0.7476 | 0.6310 | 0.9168 |
+> | `quantum` (frozen) | 1.0000 | 0.9999 | 0.9958 | 0.9916 | 1.0000 |
+> | fusion | **0.9693** (0.9717) | | | | |
+>
+> v1 values in parentheses. `cyber` and `quantum` reproduce v1 **exactly**,
+> confirming the freeze held across a corpus rebuild.
+>
+> ### What actually changed
+>
+> 1. **Dataset-native features now reach training.** `11_unify.py` built the
+>    compact corpus as `[c for c in UNIFIED_COLUMNS if c != "attributes"]`, and
+>    every source's real features were packed inside `attributes`. The v1 fraud
+>    model trained on 15 numerics + `event_type`; 0.838 was a data-plumbing
+>    ceiling, not a modelling one.
+> 2. **User history exists now.** v1: **0%** of fraud training rows had any user
+>    history — `f_user_seq_no`, `f_user_secs_since_last`, `f_amount_z_user`,
+>    `f_amount_ratio_mean` all scored mean |SHAP| exactly **0.0**. Row-level
+>    sampling had shattered sequences, and PaySim has 1.0 events/user even at
+>    full size. Adding Sparkov (999 cards, median 1,471 txns each, CC0) and
+>    keeping it un-sampled took financial coverage to **79.7%**. Three of those
+>    four features are now in the top 8 by SHAP.
+> 3. **Two heads.** `event_type` was the v1 fraud model's #2 feature (SHAP 0.477)
+>    — capacity spent separating payments from account applications. Each head
+>    now gets a contract that is actually populated.
+> 4. **`severity` is no longer label-derived** at source (agreement with `label`
+>    was exactly 1.0000 for baf/beth/creditcard/paysim/rba).
+>
+> ### Sources dropped, with cause
+>
+> - **paysim** — promoting its balance columns (correct in general) exposed the
+>   simulator's own fraud rule: `balance_before == amount AND balance_after == 0`
+>   fires on 8,024 rows with **zero false positives** and 97.7% recall. A head
+>   trained with it scored a fake ROC-AUC of **1.0000** on paysim. Real fraudsters
+>   do not reliably zero an account, so it would not transfer. The balance
+>   *features* are kept — FinSpark supplies them honestly.
+> - **creditcard** — its whole signal is `V1..V28`, PCA components no bank can
+>   reconstruct or send. Under the servability rule only `amount` + timestamp
+>   remain.
+>
+> ### Known leaks, retained deliberately
+>
+> The new per-source single-feature AUC audit (`ml/evaluate.py`,
+> `single_feature_leak_audit` in each `metrics_<key>.json`) flags:
+>
+> - `f_device_past_hisev_count` — AUC **0.9995** on beth
+> - `f_user_past_malicious_rate` — AUC **0.9977** on beth
+>
+> Both are built from past labels (`severity`/`pos`), and both live in the
+> **frozen cyber** model. Cyber's 0.9975 should therefore be read as
+> dataset-identity recovery, not threat detection: beth has 149,940 positives in
+> train and **0 in val/test**, and cicids2017 is 100% positive in every split.
+> Not fixed here because cyber is off the bank's money path; fix before any claim
+> is made about it.
+>
+> ### Behaviour got worse on purpose
+>
+> `country` was the #1 feature at SHAP 0.755 — 8x the next — but RBA's label rate
+> is 0.78 for US vs 0.10 for NO. That is corpus construction, not account-takeover
+> signal, and a single-country bank sees one constant value. Removing it costs
+> 0.095 ROC-AUC and buys a model that can transfer. RBA also has a median of
+> **1 login per user**, so user-history features cannot help it either.
+>
+> ### `f_user_past_malicious_rate` removed from the servable models
+>
+> Caught by an end-to-end check against the running service, not by any offline
+> metric. The feature is built offline from labels known instantly, but online it
+> comes from `POST /feedback`, which is empty until the bank has been posting
+> adjudications for months:
+>
+> | | training (sparkov) | serving |
+> |---|---|---|
+> | share with rate > 0 | **54.0%** | **0%** |
+> | mean, fraud rows | 0.107 | — |
+> | mean, benign rows | 0.0054 | — |
+>
+> The model learned "rate == 0 means benign". In a live check it was the single
+> largest driver at SHAP **-3.86**, cancelling `amount` (+3.40) and scoring an
+> obviously fraudulent payment (300x the customer's normal, brand-new payee,
+> 03:00, novel category) at **0.0001**. After removing it from `fraud_payment`
+> and `behaviour` (`USER_F_SERVABLE`), the same payment scores **0.0444** — a
+> 13x lift over the 0.33% base rate, with `amount` correctly on top.
+>
+> Cost: `fraud_payment` F1 0.8411 -> 0.8064, ROC-AUC unchanged at 0.9976. Cheap
+> insurance against a feature the bank cannot populate on day one. The frozen
+> cyber model keeps it (and its 0.9977 beth leak), documented above.
+>
+> Restore it once FinSpark supplies `label.confirmedAt` and `engineer_batch`
+> replays labels at their true confirmation time (`LABEL_LAG_S`,
+> `LABEL_CONFIRM_RATE` are declared in `ml/feature_spec.py`, not yet applied).
+>
+> ### Open: risk bands vs a calibrated model
+>
+> The bank's decision bands (`<.25` low, `<.50` medium, `<.75` high) assume
+> scores that reach those levels. A correctly calibrated model at a 0.33% base
+> rate rarely does: the fraud-shaped payment above is a 13x lift yet lands at
+> 0.044, i.e. **"low"**. Isotonic calibration is doing its job — 0.044 really is
+> a ~4% chance of fraud — but a fixed 0.25 cut will report almost all traffic as
+> low.
+>
+> This is requirements-doc §4.3, now quantified. Options, for the bank to choose:
+> percentile/lift-based bands, per-head band thresholds, or recalibrating the
+> cut points on FinSpark traffic. `ml/evaluate.py::pick_threshold_cost` already
+> produces the business-cost operating point (`fraud_payment`: recall 0.885 at
+> precision 0.589 with c_fn = 20 c_fp); it is not yet wired into the bands.
+
+
 > **Phase 3 update (2026-07-16).** Behaviour model **promoted**: supervised
 > LightGBM on labeled rba slice replaces IsolationForest — test ROC-AUC
 > **0.584 → 0.817**, F1 0.737 → 0.829, 20× faster single-row; fusion

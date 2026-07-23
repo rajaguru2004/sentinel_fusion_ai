@@ -1,0 +1,21 @@
+{
+  "model": "fraud_application",
+  "sample_rows": 2000,
+  "mean_abs_shap_top15": {
+    "device_os": 0.62179,
+    "account_age_s": 0.37325,
+    "customer_age": 0.32662,
+    "income": 0.31708,
+    "email_is_free": 0.29476,
+    "amount": 0.22666,
+    "duration_s": 0.10402,
+    "f_log1p_amount": 0.04618,
+    "f_dayofweek": 0.02425,
+    "is_foreign_request": 0.02323,
+    "f_hour_cos": 0.02165,
+    "f_hour": 0.02142,
+    "session_length_s": 0.01878,
+    "f_hour_sin": 0.01664,
+    "f_is_weekend": 0.00426
+  }
+}

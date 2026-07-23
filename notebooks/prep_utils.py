@@ -43,16 +43,68 @@ UNIFIED_COLUMNS: dict[str, str] = {
     "label_type": "category",
     "attack_technique": "string",
     "time_is_synthetic": "bool",
+
+    # ---------------------------------------------------------- banking v2 ----
+    # Canonical banking block (docs/canonical_schema.md). Rule: a column lives
+    # here ONLY if the FinSpark simulator can supply it at scoring time. Anything
+    # a single source uniquely has stays in `attributes` and never becomes a
+    # model feature -- otherwise the model learns signals that vanish in prod.
+    # All optional / NaN-safe.
+    "counterparty_id": "string",
+    "counterparty_country": "category",
+    "counterparty_is_new": "Int8",
+    "counterparty_age_s": "float64",
+    "name_mismatch": "Int8",
+    "balance_before": "float64",
+    "balance_after": "float64",
+    "counterparty_balance_before": "float64",
+    "counterparty_balance_after": "float64",
+    "customer_age": "float64",
+    "account_age_s": "float64",
+    "income": "float64",
+    "channel": "category",
+    "device_os": "category",
+    "device_is_new": "Int8",
+    "session_length_s": "float64",
+    "is_foreign_request": "Int8",
+    "email_is_free": "Int8",
+    "merchant_id": "string",
+    "merchant_category": "category",
+    "geo_lat": "float64",
+    "geo_lon": "float64",
+    "counterparty_lat": "float64",
+    "counterparty_lon": "float64",
+    "currency": "category",
+    "payment_type": "category",
+    "is_credit": "Int8",
+    # Bank-computed signals (BANK_INTEGRATION_IMPROVEMENTS.md §3.3). Trained as
+    # independent features AND used as cold-store fallback seeds.
+    "bank_txn_count_1h": "float64",
+    "bank_amount_vs_user_mean": "float64",
+    "bank_beneficiary_age_s": "float64",
+    "bank_is_new_beneficiary": "Int8",
+
+    # `attributes` stays LAST: it is the only column dropped from the compact
+    # training corpus, so keeping it terminal makes that slice obvious.
     "attributes": "string",
 }
+
+# Columns the compact training corpus keeps. Everything except the lossless JSON
+# blob -- the v1 bug was that the banking signals lived *inside* that blob and so
+# were silently discarded before training (see docs/canonical_schema.md).
+COMPACT_COLUMNS = [c for c in UNIFIED_COLUMNS if c != "attributes"]
 
 DOMAINS = {"cyber", "financial", "behaviour", "threat_intel", "quantum"}
 LABEL_TYPES = {"attack", "fraud", "insider", "account_takeover", "ioc", "quantum_risk", "none"}
 
+CHANNELS = {"web", "mobile", "atm", "pos", "branch", "api"}
+PAYMENT_TYPES = {"transfer", "cash_out", "cash_in", "debit", "payment", "card_purchase"}
+
 
 def to_unified(df: pd.DataFrame, *, source_dataset: str, event_domain: str,
                event_type: str, label_type: str,
-               attributes_cols: list[str] | None = None) -> pd.DataFrame:
+               attributes_cols: list[str] | None = None,
+               label_alias_exempt: dict[str, str] | None = None) -> pd.DataFrame:
     """Map a cleaned dataframe onto the unified schema.
 
     Caller pre-populates any core columns it has (event_time, label, severity, ...).
@@ -102,16 +154,106 @@ def to_unified(df: pd.DataFrame, *, source_dataset: str, event_domain: str,
             else:
                 raise
     out = out[list(UNIFIED_COLUMNS)]
-    validate_unified(out)
+    validate_unified(out, label_alias_exempt=label_alias_exempt)
     return out
 
 
-def validate_unified(df: pd.DataFrame) -> None:
+def validate_unified(df: pd.DataFrame,
+                     label_alias_exempt: dict[str, str] | None = None) -> None:
     assert list(df.columns) == list(UNIFIED_COLUMNS), "column order mismatch"
     assert df["event_id"].is_unique, "duplicate event_id"
     assert df["label"].dropna().isin([-1, 0, 1]).all(), "invalid label values"
     assert df["severity"].dropna().between(0, 4).all(), "severity out of range"
     assert df["event_domain"].isin(DOMAINS).all(), "bad domain"
+
+    ch = df["channel"].dropna()
+    assert ch.isin(CHANNELS).all(), f"bad channel(s): {sorted(set(ch) - CHANNELS)}"
+    pt = df["payment_type"].dropna()
+    assert pt.isin(PAYMENT_TYPES).all(), f"bad payment_type(s): {sorted(set(pt) - PAYMENT_TYPES)}"
+    for c in ("counterparty_is_new", "name_mismatch", "device_is_new",
+              "is_foreign_request", "email_is_free", "is_credit",
+              "bank_is_new_beneficiary"):
+        assert df[c].dropna().isin([0, 1]).all(), f"{c} must be 0/1"
+
+    assert_no_label_alias(df, exempt=label_alias_exempt)
+
+
+# Any column reproducing the label this closely is an alias, not a feature.
+LABEL_ALIAS_MAX_AGREEMENT = 0.98
+
+
+def assert_no_label_alias(df: pd.DataFrame,
+                          max_agreement: float = LABEL_ALIAS_MAX_AGREEMENT,
+                          exempt: dict[str, str] | None = None) -> None:
+    """Reject columns that are (near-)deterministic functions of `label`.
+
+    This is the check that would have caught the v1 `severity` bug: every
+    financial loader set `severity = 3 if fraud else 0`, giving a perfect
+    reproduction of the target. `severity` was dutifully excluded from every
+    feature list -- but `f_device_past_hisev_count` is derived FROM it, so the
+    leak reached the models anyway and became the top cyber feature (mean |SHAP|
+    4.36). Catch it at the source instead.
+
+    Scored by **balanced accuracy** of the best single-value split, not raw
+    agreement. Raw agreement is useless under class imbalance: at a 0.5% fraud
+    rate a *constant* column "agrees" with the label 99.5% of the time purely by
+    predicting the majority class. Balanced accuracy is 0.5 for any constant and
+    1.0 only for a genuine alias.
+
+    Only low-cardinality columns are checked -- a continuous column is not an
+    alias by value, and a leaky one shows up via its derived features instead.
+
+    ``exempt`` maps column -> written justification, for the v1 sources whose
+    models are deliberately frozen (see reports/ml/MODELS.md). It is a
+    fail-closed escape hatch on purpose: a silent threshold relaxation would hide
+    every future leak, whereas an exemption with a reason string is visible in
+    code review and greppable.
+    """
+    exempt = exempt or {}
+    for col, why in exempt.items():
+        assert col in df.columns, f"exemption for unknown column {col!r}"
+        assert why and why.strip(), f"exemption for {col!r} needs a justification"
+    lab = df["label"]
+    m = lab.isin([0, 1])
+    if m.sum() < 100:                       # too few labeled rows to conclude
+        return
+    y = lab[m].astype("int8").to_numpy()
+    if y.min() == y.max():                  # single-class slice: agreement is vacuous
+        return
+    pos, neg = y == 1, y == 0
+
+    offenders = []
+    never_checked = {"label", "label_type", "event_id", "event_time"}
+    for col in df.columns:
+        if col in never_checked or col in exempt:
+            continue
+        s = df.loc[m, col]
+        ok = s.notna().to_numpy()
+        if ok.sum() < 100:
+            continue
+        vals = s[ok]
+        if vals.nunique() > 32 or vals.nunique() < 2:
+            continue
+        p, n = pos[ok], neg[ok]
+        if not p.any() or not n.any():
+            continue
+        best = 0.0
+        for v in vals.unique():
+            hit = (vals == v).to_numpy()
+            # balanced accuracy of "value == v predicts fraud", and its inverse
+            tpr, fpr = hit[p].mean(), hit[n].mean()
+            bal = 0.5 * (tpr + (1.0 - fpr))
+            best = max(best, bal, 1.0 - bal)
+        if best >= max_agreement:
+            offenders.append((col, round(best, 4)))
+
+    assert not offenders, (
+        f"column(s) alias the label (balanced accuracy >= {max_agreement}): "
+        f"{offenders}. A near-perfect function of the target must not enter the "
+        "corpus -- even if excluded from FEATURES, derived features can leak it "
+        "back in (see docs/canonical_schema.md). If this source's model is "
+        "deliberately frozen, pass to_unified(..., label_alias_exempt={'col': "
+        "'why'}) rather than relaxing the threshold.")
 
 
 # ------------------------------------------------------------- reporting ----

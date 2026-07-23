@@ -11,10 +11,8 @@ from typing import Any, Mapping
 import numpy as np
 import pandas as pd
 
-from ml.config import DOMAIN_OF_MODEL
+from ml.config import route
 from ml.features import CategoryEncoder, build_matrix, impute
-
-_MODEL_OF_DOMAIN = {v: k for k, v in DOMAIN_OF_MODEL.items()}
 
 
 class Explainer:
@@ -32,7 +30,11 @@ class Explainer:
         return self._explainers[key]
 
     def explain(self, ev: Mapping[str, Any]) -> dict[str, Any] | None:
-        key = _MODEL_OF_DOMAIN.get(ev.get("event_domain"))
+        # Route exactly as the scorer does. Inverting DOMAIN_OF_MODEL is WRONG
+        # now that two heads share the financial domain: the later key silently
+        # wins, so every financial event got explained by fraud_application
+        # regardless of which head actually scored it.
+        key = route(ev.get("event_domain"), ev.get("event_type"))
         if key is None:
             return None
         b = self._bundles[key]

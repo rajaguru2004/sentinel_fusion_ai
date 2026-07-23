@@ -2,7 +2,7 @@
   "seed": 42,
   "data": {
     "file": "unified_events_engineered.parquet",
-    "rows": 2043664,
+    "rows": 3896058,
     "split_rule": "per-source temporal quantile cut on (event_time, event_id) order"
   },
   "fast_mode": false,
@@ -47,17 +47,66 @@
     }
   },
   "features": {
-    "fraud": {
+    "fraud_payment": {
       "numeric": [
         "amount",
         "f_log1p_amount",
         "f_amount_z_user",
         "f_amount_ratio_mean",
-        "duration_s",
+        "balance_before",
+        "balance_after",
+        "counterparty_balance_before",
+        "counterparty_balance_after",
+        "f_balance_drain_ratio",
+        "f_amount_vs_balance",
+        "f_balance_inconsistent",
+        "counterparty_age_s",
+        "counterparty_is_new",
+        "name_mismatch",
+        "f_counterparty_new",
+        "f_user_distinct_counterparties",
+        "f_merchant_category_novel",
+        "f_user_txn_count_1h",
+        "f_geo_distance_km",
+        "customer_age",
+        "account_age_s",
+        "device_is_new",
+        "is_foreign_request",
+        "is_credit",
         "f_user_seq_no",
         "f_user_secs_since_last",
-        "f_user_past_malicious_rate",
         "f_user_new_country",
+        "f_hour",
+        "f_dayofweek",
+        "f_is_weekend",
+        "f_is_night",
+        "f_hour_sin",
+        "f_hour_cos",
+        "bank_txn_count_1h",
+        "bank_amount_vs_user_mean",
+        "bank_beneficiary_age_s",
+        "bank_is_new_beneficiary"
+      ],
+      "categorical": [
+        "payment_type",
+        "channel",
+        "merchant_category",
+        "currency",
+        "country",
+        "counterparty_country"
+      ]
+    },
+    "fraud_application": {
+      "numeric": [
+        "amount",
+        "f_log1p_amount",
+        "duration_s",
+        "session_length_s",
+        "income",
+        "customer_age",
+        "account_age_s",
+        "email_is_free",
+        "is_foreign_request",
         "f_hour",
         "f_dayofweek",
         "f_is_weekend",
@@ -66,7 +115,9 @@
         "f_hour_cos"
       ],
       "categorical": [
-        "event_type"
+        "channel",
+        "device_os",
+        "country"
       ]
     },
     "cyber": {
@@ -103,10 +154,8 @@
         "duration_s",
         "f_user_seq_no",
         "f_user_secs_since_last",
-        "f_user_past_malicious_rate",
         "f_user_new_country",
         "f_device_seq_no",
-        "f_device_past_hisev_count",
         "f_hour",
         "f_dayofweek",
         "f_is_weekend",
@@ -116,8 +165,7 @@
       ],
       "categorical": [
         "event_type",
-        "event_subtype",
-        "country"
+        "event_subtype"
       ]
     },
     "quantum": {
@@ -144,12 +192,13 @@
     }
   },
   "stage_times_s": {
-    "load_split_s": 3.9,
-    "fraud_s": 4.8,
-    "cyber_s": 4.4,
-    "behaviour_s": 1.6,
-    "quantum_s": 1.9,
-    "fusion_s": 0.6
+    "load_split_s": 7.4,
+    "fraud_payment_s": 18.6,
+    "fraud_application_s": 2.8,
+    "cyber_s": 5.7,
+    "behaviour_s": 2.6,
+    "quantum_s": 2.8,
+    "fusion_s": 0.8
   },
-  "total_s": 17.4
+  "total_s": 41.5
 }

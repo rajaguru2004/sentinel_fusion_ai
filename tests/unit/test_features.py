@@ -21,21 +21,21 @@ def test_impute_leaves_no_nan():
 
 def test_build_matrix_column_order_matches_spec(fixture_frame):
     fin = fixture_frame[fixture_frame["event_domain"] == "financial"]
-    X, _ = build_matrix(fin, "fraud")
-    spec = FEATURES["fraud"]
+    X, _ = build_matrix(fin, "fraud_payment")
+    spec = FEATURES["fraud_payment"]
     assert list(X.columns) == spec["numeric"] + spec["categorical"]
 
 
 def test_missing_numeric_column_becomes_nan_column(fixture_frame):
     fin = fixture_frame[fixture_frame["event_domain"] == "financial"].drop(
-        columns=["duration_s"])
-    X, _ = build_matrix(fin, "fraud")
-    assert X["duration_s"].isna().all()
+        columns=["amount"])
+    X, _ = build_matrix(fin, "fraud_payment")
+    assert X["amount"].isna().all()
 
 
 def test_matrix_reuses_frozen_encoder(fixture_frame):
     fin = fixture_frame[fixture_frame["event_domain"] == "financial"]
-    _, enc = build_matrix(fin.iloc[:100], "fraud")
+    _, enc = build_matrix(fin.iloc[:100], "fraud_payment")
     frozen = dict(enc.mapping)
-    build_matrix(fin.iloc[100:200], "fraud", enc)
+    build_matrix(fin.iloc[100:200], "fraud_payment", enc)
     assert enc.mapping == frozen  # transform must not refit

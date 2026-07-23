@@ -88,17 +88,38 @@ dataset_report(df, "paysim", label_col="isFraud",
                notes="Simulated 30-day window anchored 2023-01-01 (synthetic). Balance inconsistencies kept as feature.")
 
 # %%
+_PAYMENT_TYPE = {"TRANSFER": "transfer", "CASH_OUT": "cash_out", "CASH_IN": "cash_in",
+                 "DEBIT": "debit", "PAYMENT": "payment"}
+
 u = pd.DataFrame({
     "event_time": df["event_time"],
     "event_subtype": df["type"].astype(str).str.lower(),
     "user_id": df["nameOrig"],
     "amount": df["amount"],
-    "severity": np.where(df["isFraud"] == 1, 3, 0).astype("int8"),
+    # v2 rule: severity is ex-ante triage, NEVER a function of label. v1 set
+    # `3 if isFraud else 0` -- a perfect target alias that leaked into the models
+    # via f_device_past_hisev_count. See docs/canonical_schema.md.
+    "severity": np.int8(0),
     "label": df["isFraud"].astype("Int8"),
     "time_is_synthetic": True,
+    # --- canonical banking block (promoted out of `attributes`) ---
+    # Balance movement is THE PaySim fraud pattern (accounts drained to zero) and
+    # in v1 it was packed into the JSON blob that 11_unify.py then dropped, so no
+    # model ever saw it.
+    "balance_before": df["oldbalanceOrg"],
+    "balance_after": df["newbalanceOrig"],
+    "counterparty_balance_before": df["oldbalanceDest"],
+    "counterparty_balance_after": df["newbalanceDest"],
+    "counterparty_id": df["nameDest"],
+    "payment_type": df["type"].astype(str).map(_PAYMENT_TYPE),
+    "channel": "mobile",
+    "is_credit": (df["type"].astype(str) == "CASH_IN").astype("Int8"),
 })
-attr_cols = ["nameDest", "oldbalanceOrg", "newbalanceOrig", "oldbalanceDest",
-             "newbalanceDest", "isFlaggedFraud", "orig_balance_inconsistent", "step"]
+# Source-local: simulator bookkeeping + the rule-engine's own flag (never a
+# feature -- it is a verdict, not an observation). `orig_balance_inconsistent`
+# stays here because it is now derivable at serving time from the canonical
+# balance columns, so it becomes an f_* feature rather than a raw column.
+attr_cols = ["isFlaggedFraud", "orig_balance_inconsistent", "step"]
 u[attr_cols] = df[attr_cols]
 u = to_unified(u, source_dataset="paysim", event_domain="financial",
                event_type="mobile_txn", label_type="fraud", attributes_cols=attr_cols)

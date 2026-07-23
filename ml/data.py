@@ -18,6 +18,7 @@ from .config import (
     ENGINEERED_PARQUET,
     FEATURES,
     ML_REPORTS,
+    MODEL_SOURCES,
     QUANTUM_PART_PARQUET,
     TRAIN_FRAC,
     VAL_FRAC,
@@ -46,7 +47,18 @@ def load_engineered(parquet_path=None, quantum_path=None) -> pd.DataFrame:
 
     Path args exist for test fixtures (mini parquet); defaults = full corpus.
     """
-    df = pd.read_parquet(parquet_path or ENGINEERED_PARQUET, columns=needed_columns())
+    path = parquet_path or ENGINEERED_PARQUET
+    # Ask only for columns the file actually has, then backfill the rest as NaN.
+    # Schema v2 widened the contract with the banking block, and a hard column
+    # list would make every pre-v2 artifact (notably the committed mini fixture)
+    # unreadable. Missing -> NaN is already the models' native handling.
+    import pyarrow.parquet as pq
+    available = set(pq.ParquetFile(path).schema_arrow.names)
+    want = needed_columns()
+    df = pd.read_parquet(path, columns=[c for c in want if c in available])
+    for c in want:
+        if c not in df.columns:
+            df[c] = np.nan
 
     # Target-leak scrub: for unsw_nb15/cicids2017 event_subtype IS the attack
     # category (attack_cat/Label mapped there at unify time) — null it so no
@@ -82,10 +94,21 @@ def temporal_split(df: pd.DataFrame) -> pd.Series:
 
 def domain_slice(df: pd.DataFrame, split: pd.Series, model_key: str,
                  part: str, labeled_only: bool) -> pd.DataFrame:
-    """Rows of one domain for one split part. labeled_only drops label==-1
-    (cert_insider context rows — scored by the behaviour model, never used
-    for supervised metrics)."""
-    m = (df["event_domain"] == DOMAIN_OF_MODEL[model_key]) & (split == part)
+    """Rows for one model, one split part.
+
+    Selection is by explicit source list (``feature_spec.MODEL_SOURCES``), not by
+    domain alone: the financial domain now feeds two heads (payments vs account
+    applications), and `creditcard` feeds neither — under the servability rule
+    its whole signal is source-local V1..V28, so it is excluded by omission.
+
+    ``labeled_only`` drops label==-1 (cert_insider context rows — scored by the
+    behaviour model, never used for supervised metrics).
+    """
+    sources = MODEL_SOURCES.get(model_key)
+    if sources:
+        m = df["source_dataset"].isin(sources) & (split == part)
+    else:                                    # no explicit list -> fall back to domain
+        m = (df["event_domain"] == DOMAIN_OF_MODEL[model_key]) & (split == part)
     if labeled_only:
         m &= df["label"] >= 0
     return df.loc[m]
