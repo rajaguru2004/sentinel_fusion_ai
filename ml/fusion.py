@@ -25,6 +25,57 @@ class RiskFusionEngine:
     def __init__(self, weights: dict[str, float] | None = None):
         self.weights = dict(weights or FUSION_WEIGHTS)
         self.calibrators: dict[str, IsotonicRegression] = {}
+        # model_key -> [(upper_bound, level), ...]; empty = use global RISK_BANDS
+        self.bands: dict[str, list[tuple[float, str]]] = {}
+
+    # -------------------------------------------------------------- bands ----
+    def fit_bands(self, model_key: str, risk: np.ndarray, y: np.ndarray,
+                  weights: np.ndarray | None = None) -> list[tuple[float, str]]:
+        """Fit band cut points on FUSED validation risk for one model.
+
+        Each boundary is the cost-optimal threshold at a different c_fn/c_fp
+        ratio (``config.BAND_COST_RATIOS``), so every band edge corresponds to a
+        stated business trade-off rather than a round number. Fitting happens on
+        the fused, calibrated risk because that is what the bank actually bands.
+
+        Falls back to the global constants when the slice cannot support a fit
+        (single-class or tiny validation set).
+        """
+        from .config import BAND_COST_RATIOS
+        from .evaluate import pick_threshold_cost
+
+        y = np.asarray(y)
+        if len(y) < 100 or len(np.unique(y[y >= 0])) < 2:
+            return list(RISK_BANDS)
+
+        cuts: dict[str, float] = {}
+        for level, ratio in BAND_COST_RATIOS.items():
+            t, _ = pick_threshold_cost(y, risk, c_fp=1.0, c_fn=ratio,
+                                       weights=weights)
+            cuts[level] = float(t)
+
+        # Enforce medium <= high <= critical. The cost curve is not guaranteed
+        # monotone in the ratio (ties, plateaus), and a non-monotone band table
+        # would make risk_level non-monotone in risk_score — worse than useless.
+        m = cuts["medium"]
+        h = max(cuts["high"], m)
+        c = max(cuts["critical"], h)
+
+        # Collapse case: a sharply bimodal score distribution (isotonic maps to
+        # few distinct values) gives the SAME optimum at every cost ratio. The
+        # single threshold is still the best information available, so spread
+        # the bands around it rather than discarding it — falling back to the
+        # 0.25 default would put every one of this model's positives in "low",
+        # since its whole score range can sit below 0.25.
+        top = float(np.max(risk)) if len(risk) else 1.0
+        if m == c:
+            m, h, c = 0.5 * h, h, h + 0.5 * (top - h)
+
+        if not (0.0 < m < h < c < 1.0):    # still degenerate -> keep the default
+            return list(RISK_BANDS)
+        table = [(m, "low"), (h, "medium"), (c, "high"), (1.01, "critical")]
+        self.bands[model_key] = table
+        return table
 
     # ------------------------------------------------------------ fitting ----
     def fit_calibrator(self, model_key: str, s_val: np.ndarray,
@@ -57,7 +108,12 @@ class RiskFusionEngine:
             contributions[k] = round(c, 4)
             survive *= 1.0 - c
         risk = 1.0 - survive
-        return {"risk_score": round(risk, 4), "risk_level": self.band(risk),
+        # Band with the cut points of the model that contributed most — routing
+        # means one head normally fires, and a payment-fraud 0.06 is not the
+        # same verdict as a cyber 0.06.
+        dominant = max(contributions, key=contributions.get) if contributions else None
+        return {"risk_score": round(risk, 4),
+                "risk_level": self.band(risk, dominant),
                 "contributions": contributions}
 
     def fuse_frame(self, scores: pd.DataFrame) -> pd.DataFrame:
@@ -73,16 +129,38 @@ class RiskFusionEngine:
             out[f"p_{k}"] = np.where(m, c, np.nan)
             survive *= 1.0 - c
         out["risk_score"] = 1.0 - survive
-        # same left-closed semantics as band(): risk < bound -> level; e.g. 0.25 -> "medium"
-        bounds = np.array([b for b, _ in RISK_BANDS[:-1]])
-        levels = np.array([lvl for _, lvl in RISK_BANDS])
-        out["risk_level"] = levels[np.searchsorted(bounds, out["risk_score"].to_numpy(),
-                                                   side="right")]
+        risk = out["risk_score"].to_numpy()
+
+        # Band per row using the dominant model's fitted cut points. Rows are
+        # grouped by model so each group is still a vectorized searchsorted.
+        contrib = out[[f"p_{k}" for k in scores.columns]].to_numpy(dtype="float64")
+        has = ~np.isnan(contrib).all(axis=1)
+        dominant = np.where(has, np.nanargmax(np.where(np.isnan(contrib), -np.inf,
+                                                       contrib), axis=1), -1)
+        levels_out = np.empty(len(out), dtype=object)
+        keys = list(scores.columns)
+        for i, key in enumerate(keys):
+            m = dominant == i
+            if m.any():
+                levels_out[m] = self._band_many(risk[m], key)
+        rest = dominant < 0
+        if rest.any():
+            levels_out[rest] = self._band_many(risk[rest], None)
+        out["risk_level"] = levels_out
         return out
 
-    @staticmethod
-    def band(risk: float) -> str:
-        for bound, level in RISK_BANDS:
+    def _table(self, model_key: str | None) -> list[tuple[float, str]]:
+        return self.bands.get(model_key) or list(RISK_BANDS)
+
+    def _band_many(self, risk: np.ndarray, model_key: str | None) -> np.ndarray:
+        table = self._table(model_key)
+        # left-closed semantics, same as band(): risk < bound -> level
+        bounds = np.array([b for b, _ in table[:-1]])
+        levels = np.array([lvl for _, lvl in table])
+        return levels[np.searchsorted(bounds, risk, side="right")]
+
+    def band(self, risk: float, model_key: str | None = None) -> str:
+        for bound, level in self._table(model_key):
             if risk < bound:
                 return level
-        return RISK_BANDS[-1][1]
+        return self._table(model_key)[-1][1]

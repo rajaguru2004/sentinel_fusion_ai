@@ -1,5 +1,89 @@
 # Sentinel Fusion AI — Model Report
 
+> ## Phase 5 update (2026-07-23) — bands, label lag, FinSpark
+>
+> | model | ROC-AUC | PR-AUC | F1 | fitted bands (low/med/high edges) |
+> |---|---:|---:|---:|---|
+> | `fraud_payment` | **0.9981** | 0.8897 | **0.8314** | 0.0138 / 0.0396 / 0.2430 |
+> | `fraud_application` | 0.7927 | 0.3469 | 0.3814 | 0.0922 / 0.2760 / 0.6471 |
+> | `cyber` | 0.9975 | 0.9960 | 0.9620 | 0.0069 / 0.1559 / 0.1837 |
+> | `behaviour` | 0.7033 | 0.7144 | 0.7476 | 0.0574 / 0.1148 / 0.4074 |
+> | `quantum` | 1.0000 | 0.9999 | 0.9958 | *(default — scores are bimodal)* |
+> | fusion | **0.9811** | | | |
+>
+> ### 1. Risk bands are now fitted, not constants
+>
+> `risk_score` stays a genuine calibrated probability — rescaling it would have
+> fixed the bands but destroyed calibration monitoring and audit. The **bands**
+> moved instead. Each edge is the cost-optimal threshold at a stated c_fn/c_fp
+> ratio (`config.BAND_COST_RATIOS` = medium 60, high 20, critical 5), fitted on
+> fused validation risk, so every boundary maps to a business trade-off rather
+> than a round number.
+>
+> End-to-end effect on a 40-transaction customer:
+>
+> | event | risk | band before | band now |
+> |---|---:|---|---|
+> | normal purchase | 0.0000 | low | low |
+> | moderately unusual | 0.0396 | low | **high** |
+> | fraud-shaped payment | 1.0000 | critical | critical |
+>
+> Where a model's score distribution is sharply bimodal every cost ratio returns
+> the same optimum; the bands are then spread around that single threshold
+> rather than discarded (falling back to 0.25 would have put *all* of
+> `behaviour`'s positives in "low", since its whole range sits below 0.25).
+> `quantum` still falls back, correctly — it is a rule-recovery model whose
+> scores are 0 or 0.9.
+>
+> ### 2. Label lag: `f_user_past_malicious_rate` stays OUT
+>
+> `engineer_batch` now replays labels at the time they would actually have been
+> known — `label.confirmedAt` where the source supplies it, else a deterministic
+> hash-selected 60% confirmed after 7 days. The feature was then re-measured
+> against the gate "re-add only if it survives".
+>
+> **It does not survive.** With realistic label arrival its discriminative power
+> vanishes:
+>
+> | source | mean \| fraud | mean \| benign | with instant labels |
+> |---|---:|---:|---|
+> | sparkov | **0.0000** | 0.0031 | 0.107 vs 0.0054 (20x) |
+> | finspark_synth | 0.0015 | 0.0018 | — |
+> | beth | 0.0000 | 0.0000 | single-feature AUC 0.9977 |
+>
+> Fraud clusters in time, so by the time a customer's first case is adjudicated
+> the rest have already happened. The feature's apparent value was entirely
+> instant-label leakage. It remains excluded from `fraud_payment` and
+> `behaviour`.
+>
+> The lag machinery still earns its place: it removed a genuine leak from the
+> frozen `cyber` model. The per-source leak audit now flags **one** feature
+> (`f_device_past_hisev_count`, beth AUC 0.9995) where it previously flagged two.
+>
+> ### 3. FinSpark path is live end-to-end
+>
+> `notebooks/src/15_finspark.py` loads the bank export, asserts the spec's
+> acceptance rules on receipt (unique ids, 0.05–2% fraud rate, median ≥50 events
+> per customer, `confirmedAt` never preceding its event, no label alias) and maps
+> straight onto the canonical schema.
+>
+> Until the real export exists, `notebooks/finspark_gen.py` emits spec-conformant
+> data tagged `source_dataset="finspark_synth"` so the whole path stays
+> exercised. **This is scaffolding and is currently in the training corpus** —
+> remove it from `feature_spec.MODEL_SOURCES` the day the real export lands.
+> Per-source metrics are reported separately so it cannot flatter the sparkov
+> numbers.
+>
+> Writing the generator immediately paid for itself: the label-alias guard
+> rejected the first version, because it gave every fraud a fresh payee and every
+> benign payment an old one, making `isNew` a 0.985-balanced-accuracy alias of
+> the target. Real customers pay newly-added payees legitimately, and the
+> generator now models that overlap.
+>
+> FinSpark is in `NO_SAMPLE`: the spec asks for ≥2M events, which would exceed
+> the per-stratum cap and get row-sampled — shattering exactly the whole-customer
+> sequences the spec demands, on the one source shaped like production.
+
 > ## Phase 4 / schema v2 update (2026-07-23)
 >
 > **Corpus rebuilt, fraud model split in two, two datasets dropped for cause.**

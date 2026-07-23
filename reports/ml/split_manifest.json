@@ -1,5 +1,5 @@
 {
-  "rows_total": 3896058,
+  "rows_total": 4006719,
   "fractions": {
     "train": 0.7,
     "val": 0.15,
@@ -111,6 +111,21 @@
       "rows": 1,
       "positives": 1,
       "unlabeled": 0
+    },
+    "finspark_synth/test": {
+      "rows": 16600,
+      "positives": 41,
+      "unlabeled": 8290
+    },
+    "finspark_synth/train": {
+      "rows": 77462,
+      "positives": 206,
+      "unlabeled": 38068
+    },
+    "finspark_synth/val": {
+      "rows": 16599,
+      "positives": 51,
+      "unlabeled": 8185
     },
     "malicious_urls/test": {
       "rows": 44949,

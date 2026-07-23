@@ -6,6 +6,7 @@ cicids2017,2520484,149866,True,,2520484.0,
 cisa_kev,1644,1644,True,,,1644.0
 creditcard,283726,150604,True,283253.0,473.0,
 feodo,5,5,True,,5.0,
+finspark_synth,110661,110661,False,55820.0,298.0,54543.0
 malicious_urls,641119,299656,True,428080.0,213039.0,
 mitre_attack,697,697,True,,,697.0
 paysim,6362620,158265,True,6354407.0,8213.0,

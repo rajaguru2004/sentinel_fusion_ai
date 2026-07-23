@@ -19,6 +19,7 @@ it is updated out-of-band via the feedback path.
 """
 from __future__ import annotations
 
+import hashlib
 import math
 from dataclasses import dataclass, replace
 from typing import Any, Mapping
@@ -31,6 +32,8 @@ import pandas as pd
 from .feature_spec import (  # noqa: E402
     DEVICE_STATEFUL_F,
     ENGINEERED_F,
+    LABEL_CONFIRM_RATE,
+    LABEL_LAG_S,
     STATELESS_BANKING,
     STATELESS_F,
     STATELESS_TEMPORAL,
@@ -57,6 +60,52 @@ _EPOCH = pd.Timestamp(0, tz="UTC")
 # vs online z = NaN. Treat any variance below this fraction of the mean-square
 # as exactly zero, in BOTH paths, so the outcome is deterministic.
 _VAR_EPS_REL = 1e-9
+
+
+def _confirmation_times(sub: pd.DataFrame, is_pos: pd.Series) -> pd.Series:
+    """Epoch seconds at which each positive would have become KNOWN.
+
+    Prefers a real `label_confirmed_at` from the source (FinSpark's
+    ``label.confirmedAt``). Where that is absent, applies the documented
+    fallback: a deterministic ``LABEL_CONFIRM_RATE`` share of positives is
+    confirmed ``LABEL_LAG_S`` after the event, and the rest are never confirmed
+    — which is what an incomplete adjudication pipeline actually looks like.
+
+    Non-positives and unconfirmed positives get ``inf`` so they never count.
+    Selection is by a hash of ``event_id``, not an RNG, so the corpus is
+    reproducible and independent of row order.
+    """
+    out = pd.Series(np.inf, index=sub.index, dtype="float64")
+    pos_mask = is_pos.to_numpy() == 1.0
+    if not pos_mask.any():
+        return out
+
+    ev_secs = (sub["event_time"] - _EPOCH).dt.total_seconds().to_numpy()
+
+    real = None
+    if "label_confirmed_at" in sub.columns:
+        real = (pd.to_datetime(sub["label_confirmed_at"], utc=True, errors="coerce")
+                - _EPOCH).dt.total_seconds().to_numpy()
+
+    vals = np.full(len(sub), np.inf)
+    if real is not None:
+        have_real = pos_mask & np.isfinite(real)
+        # never let a confirmation precede its own event
+        vals[have_real] = np.maximum(real[have_real], ev_secs[have_real])
+    else:
+        have_real = np.zeros(len(sub), dtype=bool)
+
+    need_synth = pos_mask & ~have_real
+    if need_synth.any():
+        ids = sub.loc[need_synth, "event_id"].astype(str).to_numpy()
+        # stable per-event draw in [0,1)
+        draw = np.array([(int(hashlib.blake2b(i.encode(), digest_size=4).hexdigest(), 16)
+                          % 10_000) / 10_000.0 for i in ids])
+        confirmed = draw < LABEL_CONFIRM_RATE
+        idx = np.flatnonzero(need_synth)
+        vals[idx[confirmed]] = ev_secs[idx[confirmed]] + LABEL_LAG_S
+    out.iloc[:] = vals
+    return out
 
 
 def _past_std(n: float, s: float, s2: float) -> float:
@@ -315,10 +364,38 @@ def engineer_batch(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[has_user, "f_user_seq_no"] = seq
         df.loc[has_user, "f_user_secs_since_last"] = (
             g["event_time"].diff().dt.total_seconds())
+        # Past malicious rate under REALISTIC label arrival.
+        #
+        # Building this from instantly-known labels is a silent train/serve
+        # skew: online it is driven by POST /feedback, which arrives days later
+        # and only for a fraction of events. Measured on the v2 corpus, the
+        # naive version was >0 on 54% of training rows versus 0% of live
+        # traffic, and the model learned "rate == 0 means benign" — suppressing
+        # a blatant fraud to a 0.0001 score.
+        #
+        # A positive therefore only counts once it would have been CONFIRMED:
+        # at `label_confirmed_at` when the source supplies it (FinSpark), else
+        # at event_time + LABEL_LAG_S for a deterministic `LABEL_CONFIRM_RATE`
+        # share of positives.
         is_pos = sub["label"].eq(1).astype("float64")
-        cum_pos = is_pos.groupby(sub["user_id"], observed=True, sort=False).cumsum()
+        confirmed_at = _confirmation_times(sub, is_pos)
+        # A prior positive counts for row i only if confirmed strictly before
+        # row i's event time. Both series are per-user ascending in time.
+        counted = pd.Series(0.0, index=sub.index)
+        ev_secs = (sub["event_time"] - _EPOCH).dt.total_seconds().to_numpy()
+        conf_secs = confirmed_at.to_numpy()
+        for gidx in sub.groupby("user_id", observed=True, sort=False).indices.values():
+            gidx = np.sort(gidx)
+            c = conf_secs[gidx]
+            e = ev_secs[gidx]
+            known = np.isfinite(c)
+            if not known.any():
+                continue
+            cs = np.sort(c[known])
+            # number of confirmations strictly before each event time
+            counted.iloc[gidx] = np.searchsorted(cs, e, side="left").astype("float64")
         df.loc[has_user, "f_user_past_malicious_rate"] = (
-            (cum_pos - is_pos) / seq.replace(0, np.nan))
+            counted / seq.replace(0, np.nan))
         has_uc = has_user & df["country"].notna()
         uc = df.loc[has_uc]
         df.loc[has_uc, "f_user_new_country"] = (

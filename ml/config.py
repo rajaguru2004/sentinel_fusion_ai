@@ -90,7 +90,24 @@ IFOREST_PARAMS = dict(
 # a populated feature contract, not about trusting one more than the other.
 FUSION_WEIGHTS = {"fraud_payment": 1.0, "fraud_application": 1.0,
                   "cyber": 1.0, "behaviour": 0.7, "quantum": 0.9}
+# Fallback bands, used only when a model has no fitted cut points (legacy
+# bundles, or a model with too few validation positives to fit on).
 RISK_BANDS = [(0.25, "low"), (0.50, "medium"), (0.75, "high"), (1.01, "critical")]
+
+# Per-model band cut points are FITTED instead (ml.fusion.fit_bands).
+#
+# Why: `risk_score` is a genuine calibrated probability, so at a realistic fraud
+# base rate (~0.3%) even a strong signal lands near 0.05 — the fixed 0.25/0.50
+# constants then report almost all traffic as "low". Rescaling the score would
+# fix the bands but destroy the probability contract (and with it calibration
+# monitoring), so the score is left alone and the BANDS move.
+#
+# Each boundary is the cost-optimal threshold at a stated c_fn/c_fp ratio, which
+# is what makes the bands defensible to a risk committee: "high" begins where
+# missing a fraud costs 20x a false positive — the ratio already in COST below.
+# A larger ratio means false negatives hurt more, so the threshold drops and the
+# band opens earlier; hence medium(60) < high(20) < critical(5).
+BAND_COST_RATIOS = {"medium": 60.0, "high": 20.0, "critical": 5.0}
 
 LATENCY_SINGLE_ROWS = 200   # single-row predict calls to time
 LATENCY_BATCH_SIZE = 10_000

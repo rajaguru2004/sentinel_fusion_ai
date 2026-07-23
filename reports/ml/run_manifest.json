@@ -2,7 +2,7 @@
   "seed": 42,
   "data": {
     "file": "unified_events_engineered.parquet",
-    "rows": 3896058,
+    "rows": 4006719,
     "split_rule": "per-source temporal quantile cut on (event_time, event_id) order"
   },
   "fast_mode": false,
@@ -192,13 +192,13 @@
     }
   },
   "stage_times_s": {
-    "load_split_s": 7.4,
-    "fraud_payment_s": 19.7,
-    "fraud_application_s": 3.2,
-    "cyber_s": 5.7,
-    "behaviour_s": 2.7,
-    "quantum_s": 3.1,
+    "load_split_s": 7.7,
+    "fraud_payment_s": 24.7,
+    "fraud_application_s": 3.0,
+    "cyber_s": 6.4,
+    "behaviour_s": 2.9,
+    "quantum_s": 3.0,
     "fusion_s": 0.8
   },
-  "total_s": 43.4
+  "total_s": 49.5
 }

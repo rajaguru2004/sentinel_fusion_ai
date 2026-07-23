@@ -79,7 +79,7 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
     X_va, _ = F.build_matrix(va, key, enc)
     X_te, _ = F.build_matrix(te, key, enc)
     y_tr, _ = F.labels_and_weights(tr)
-    y_va, _ = F.labels_and_weights(va)
+    y_va, w_va = F.labels_and_weights(va)
     y_te, w_te = F.labels_and_weights(te)
 
     lib = MODEL_LIB[key]
@@ -146,6 +146,7 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
     if medians is not None:
         X_all = F.impute(X_all, medians)
     return {"bundle": bundle, "metrics": metrics, "s_va": s_va, "y_va": y_va,
+            "w_va": w_va,
             "test_index": te_all.index, "test_scores": T.score(model, X_all),
             "X_tr": X_tr}
 
@@ -205,6 +206,12 @@ def run(df: pd.DataFrame | None = None, *, models_dir=MODELS, reports_dir=ML_REP
                       fast=fast, skip_shap=skip_shap)
         print(f"  test: {r['metrics']['test']}")
         engine.fit_calibrator(key, r["s_va"], r["y_va"])
+        # Band cut points are fitted on the FUSED validation risk (what the bank
+        # actually bands), not on the raw model score.
+        va_risk = engine.fuse_frame(
+            pd.DataFrame({key: r["s_va"]}))["risk_score"].to_numpy()
+        band_table = engine.fit_bands(key, va_risk, r["y_va"], r["w_va"])
+        print(f"  bands: {[(round(b, 4), lvl) for b, lvl in band_table[:-1]]}")
         test_scores.loc[r["test_index"], key] = r["test_scores"]
         per_model_Xtr[key] = r["X_tr"]
         val_scores[key] = r["s_va"]

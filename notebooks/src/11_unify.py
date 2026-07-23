@@ -104,7 +104,14 @@ rng = np.random.default_rng(42)
 # So Sparkov is kept in full: it is the sole public source that can teach
 # velocity and amount-vs-history, which is the reason it was acquired.
 # Sampling it would reintroduce exactly the bug it was brought in to fix.
-NO_SAMPLE = {"sparkov"}
+#
+# FinSpark is here for the same reason and it matters MORE: the export spec asks
+# for >=2M events, which would exceed the per-stratum cap and get row-sampled —
+# shattering the whole-customer sequences the spec goes out of its way to
+# demand, and silently recreating the v1 bug on the one source shaped like
+# production. It is also the calibration authority, so its base rate must be
+# preserved exactly.
+NO_SAMPLE = {"sparkov", "finspark", "finspark_synth"}
 
 samples, composition = [], []
 for p in parts:

@@ -51,3 +51,26 @@ def test_never_leaks_internal_feature_names():
 def test_beneficiary_age_is_humanised():
     assert describe([_a("counterparty_age_s", 300.0, 1.0)]) == [
         "beneficiary was added 5 minutes ago"]
+
+
+def test_one_reason_per_concept():
+    """Store-computed and bank-provided views of the same fact must not both
+    render — they produce contradictory sentences in the analyst feed."""
+    out = describe([
+        _a("bank_txn_count_1h", 8.0, 3.0),
+        _a("f_user_txn_count_1h", 2.0, 1.0),
+        _a("f_counterparty_new", 1.0, 0.5),
+    ])
+    velocity = [r for r in out if "past hour" in r]
+    assert len(velocity) == 1, out
+    # documented precedence: the store-computed value wins
+    assert velocity[0] == "2 transactions by this customer in the past hour"
+
+
+def test_amount_views_collapse_to_one_reason():
+    out = describe([
+        _a("f_amount_ratio_mean", 12.0, 2.0),
+        _a("bank_amount_vs_user_mean", 40.0, 1.5),
+        _a("f_amount_z_user", 30.0, 1.0),
+    ])
+    assert len(out) == 1, out

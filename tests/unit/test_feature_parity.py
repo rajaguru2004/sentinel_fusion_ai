@@ -34,9 +34,36 @@ def _present(v) -> bool:
     return not (v is None or (isinstance(v, float) and np.isnan(v)))
 
 
+def _confirm_at(ev) -> float:
+    """When this event's label would reach the store via POST /feedback.
+
+    Mirrors ``feature_core._confirmation_times``: a real ``label_confirmed_at``
+    when present, else a deterministic hash-selected share of positives arriving
+    LABEL_LAG_S later. Non-positives never confirm.
+    """
+    import hashlib
+
+    import numpy as np
+
+    from ml.feature_spec import LABEL_CONFIRM_RATE, LABEL_LAG_S
+    if ev.get("label") != 1:
+        return float("inf")
+    t = pd.Timestamp(ev["event_time"]).timestamp()
+    real = ev.get("label_confirmed_at")
+    if real is not None and not (isinstance(real, float) and np.isnan(real)):
+        return max(pd.Timestamp(real).timestamp(), t)
+    h = hashlib.blake2b(str(ev["event_id"]).encode(), digest_size=4).hexdigest()
+    return t + LABEL_LAG_S if (int(h, 16) % 10_000) / 10_000.0 < LABEL_CONFIRM_RATE \
+        else float("inf")
+
+
 def _replay(df: pd.DataFrame) -> pd.DataFrame:
-    """Row-by-row online path, feeding the ground-truth label into ``pos`` so the
-    malicious-rate formula matches the offline (instant-label) reference.
+    """Row-by-row online path.
+
+    ``pos`` is advanced when a label would actually have been CONFIRMED, not at
+    scoring time — matching how ``/feedback`` drives it in production and how
+    ``engineer_batch`` now replays labels offline. Feeding labels instantly here
+    was precisely why this test could not catch the label-lag skew.
 
     Set membership (country / counterparty / merchant-category) and the sliding
     velocity window live here rather than on ``UserState``, mirroring how the
@@ -50,6 +77,7 @@ def _replay(df: pd.DataFrame) -> pd.DataFrame:
     seen_mcc: set[tuple[str, str]] = set()
     cps: dict[str, set[str]] = {}
     window: dict[str, list[float]] = {}
+    pending: dict[str, list[float]] = {}      # user -> confirmation epochs
     rows = []
     for _, r in df.iterrows():
         ev = r.to_dict()
@@ -58,6 +86,12 @@ def _replay(df: pd.DataFrame) -> pd.DataFrame:
         uid = ev.get("user_id")
         if _present(uid):
             ust = users.get(uid, fc.UserState())
+            # Apply any feedback that has arrived since the last event.
+            now_s = pd.Timestamp(ev["event_time"]).timestamp()
+            due = [c for c in pending.get(uid, []) if c < now_s]
+            if due:
+                ust = replace(ust, pos=ust.pos + len(due))
+                pending[uid] = [c for c in pending[uid] if c >= now_s]
             country, cp = ev.get("country"), ev.get("counterparty_id")
             mcc = ev.get("merchant_category")
             now = pd.Timestamp(ev["event_time"]).timestamp()
@@ -71,9 +105,10 @@ def _replay(df: pd.DataFrame) -> pd.DataFrame:
                 txn_count_window=sum(1 for t in recent
                                      if t >= now - fc.TXN_WINDOW_S)))
             ust = fc.advance_user(ust, ev)
-            if ev.get("label") == 1:                       # feedback, instantly
-                ust = replace(ust, pos=ust.pos + 1)
             users[uid] = ust
+            conf = _confirm_at(ev)
+            if conf != float("inf"):
+                pending.setdefault(uid, []).append(conf)
             if _present(country):
                 seen_uc.add((uid, country))
             if _present(cp):
@@ -234,3 +269,46 @@ def test_first_event_user_features_are_nan():
     assert np.isnan(feats["f_user_past_malicious_rate"])
     assert np.isnan(feats["f_amount_z_user"])       # no prior amounts
     assert feats["f_user_new_country"] == 1.0       # first time this country
+
+
+def test_malicious_rate_respects_confirmation_lag():
+    """A positive must NOT count against the user until it is confirmed.
+
+    Building this feature from instantly-known labels was a silent train/serve
+    skew: online it comes from POST /feedback days later, so the model learned
+    "rate == 0 means benign" and suppressed live fraud scores to ~0.
+    """
+    from ml.feature_spec import LABEL_LAG_S
+    base = pd.Timestamp("2025-01-01", tz="UTC")
+    # 4 events, the first one fraudulent; events 1-2 fall inside the lag window.
+    rows = [
+        dict(event_id="L0", event_time=base, user_id="L", amount=10.0, label=1),
+        dict(event_id="L1", event_time=base + pd.Timedelta(seconds=LABEL_LAG_S // 2),
+             user_id="L", amount=10.0, label=0),
+        dict(event_id="L2", event_time=base + pd.Timedelta(seconds=LABEL_LAG_S * 3),
+             user_id="L", amount=10.0, label=0),
+    ]
+    df = pd.DataFrame(rows)
+    df["event_time"] = pd.to_datetime(df["event_time"], utc=True)
+    rate = fc.engineer_batch(df)["f_user_past_malicious_rate"]
+
+    assert np.isnan(rate.iloc[0])          # no prior events at all
+    assert rate.iloc[1] == 0.0             # fraud not yet adjudicated
+    # By L2 the lag has elapsed. Whether it counts depends on the deterministic
+    # confirmation draw for "L0"; either way it must not have counted earlier.
+    assert rate.iloc[2] in (0.0, 0.5)
+
+
+def test_real_confirmed_at_overrides_the_synthetic_lag():
+    """FinSpark supplies label.confirmedAt; it must win over the fallback."""
+    base = pd.Timestamp("2025-02-01", tz="UTC")
+    df = pd.DataFrame([
+        dict(event_id="R0", event_time=base, user_id="R", amount=10.0, label=1,
+             label_confirmed_at=base + pd.Timedelta(minutes=1)),
+        dict(event_id="R1", event_time=base + pd.Timedelta(minutes=5),
+             user_id="R", amount=10.0, label=0, label_confirmed_at=pd.NaT),
+    ])
+    df["event_time"] = pd.to_datetime(df["event_time"], utc=True)
+    rate = fc.engineer_batch(df)["f_user_past_malicious_rate"]
+    # confirmed after 1 minute, so by the 5-minute event it counts
+    assert rate.iloc[1] == 1.0

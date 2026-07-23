@@ -197,7 +197,13 @@ EVENT_TYPE_MODEL = {
 # no bank can send), leaving only amount + timestamp, so 150k near-featureless
 # rows at a 0.17% positive rate would add label noise and nothing else.
 MODEL_SOURCES = {
-    "fraud_payment": ["sparkov", "finspark"],
+    # finspark_synth is SCAFFOLDING from notebooks/finspark_gen.py, present only
+    # until the bank's real export lands. It keeps the whole path exercised
+    # (loader -> validation -> label replay -> calibration -> bands) and gives
+    # the calibrators a bank-shaped distribution to fit on. Per-source metrics
+    # are reported separately so it can never flatter the sparkov numbers.
+    # Drop it from this list the day `finspark` (real) arrives.
+    "fraud_payment": ["sparkov", "finspark", "finspark_synth"],
     "fraud_application": ["baf"],
     "cyber": ["unsw_nb15", "beth", "cicids2017"],
     "behaviour": ["rba", "cert_insider"],

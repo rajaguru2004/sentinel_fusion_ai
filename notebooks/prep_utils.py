@@ -43,6 +43,11 @@ UNIFIED_COLUMNS: dict[str, str] = {
     "label_type": "category",
     "attack_technique": "string",
     "time_is_synthetic": "bool",
+    # When the label became KNOWN (FinSpark `label.confirmedAt`), not when the
+    # event happened. Never a feature — it is the clock the offline builder uses
+    # to replay f_user_past_malicious_rate as it would actually have arrived via
+    # /feedback, instead of assuming labels are instant.
+    "label_confirmed_at": "datetime64[ns, UTC]",
 
     # ---------------------------------------------------------- banking v2 ----
     # Canonical banking block (docs/canonical_schema.md). Rule: a column lives

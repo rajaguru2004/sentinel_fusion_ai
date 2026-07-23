@@ -42,9 +42,10 @@ def test_event_id_unique(fixture_frame):
 
 @pytest.mark.slow
 def test_full_corpus_row_count(full_frame):
-    # schema v2: 2,043,664 -> 3,896,058. Sparkov (1.85M) is kept whole rather
-    # than row-sampled, because sampling is what destroyed per-user sequences.
-    assert len(full_frame) == 3_896_058
+    # schema v2: 2,043,664 -> 3,896,058 (Sparkov kept whole rather than
+    # row-sampled, because sampling is what destroyed per-user sequences)
+    # -> 4,006,719 with the FinSpark conformance export.
+    assert len(full_frame) == 4_006_719
 
 
 @pytest.mark.slow

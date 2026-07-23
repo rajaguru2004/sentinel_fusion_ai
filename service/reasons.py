@@ -129,6 +129,41 @@ _TEMPLATES: dict[str, Callable[[Any], str | None]] = {
 }
 
 
+# Features that describe the SAME underlying fact. Several exist twice by
+# design — the store-computed `f_*` and the bank's own `bank_*` view — and
+# emitting both produces contradictory sentences in the analyst feed ("8
+# transactions in the past hour" next to "2 transactions in the past hour").
+# One reason per concept; the store-computed value wins, matching the
+# precedence documented in docs/canonical_schema.md.
+_CONCEPT = {
+    "f_user_txn_count_1h": "velocity",
+    "bank_txn_count_1h": "velocity",
+    "f_amount_ratio_mean": "amount_vs_normal",
+    "bank_amount_vs_user_mean": "amount_vs_normal",
+    "f_amount_z_user": "amount_vs_normal",
+    "counterparty_age_s": "beneficiary_age",
+    "bank_beneficiary_age_s": "beneficiary_age",
+    "f_counterparty_new": "beneficiary_new",
+    "counterparty_is_new": "beneficiary_new",
+    "bank_is_new_beneficiary": "beneficiary_new",
+    "amount": "amount_size",
+    "f_log1p_amount": "amount_size",
+    "f_hour": "time_of_day",
+    "f_hour_sin": "time_of_day",
+    "f_hour_cos": "time_of_day",
+    "f_is_night": "time_of_day",
+}
+
+
+def _prefer(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """Which of two attributions for the same concept to describe."""
+    a_store = str(a.get("feature", "")).startswith("f_")
+    b_store = str(b.get("feature", "")).startswith("f_")
+    if a_store != b_store:
+        return a if a_store else b
+    return a if abs(float(a.get("shap") or 0)) >= abs(float(b.get("shap") or 0)) else b
+
+
 def _render(name: str, value: Any) -> str | None:
     tmpl = _TEMPLATES.get(name)
     if tmpl is None or value is None:
@@ -154,6 +189,19 @@ def describe(attributions: list[dict[str, Any]], *, limit: int = 4) -> list[str]
     """
     pos = sorted((f for f in attributions if float(f.get("shap") or 0.0) > 0),
                  key=lambda f: -float(f.get("shap") or 0.0))
+
+    # Collapse duplicate views of the same fact, keeping each concept's first
+    # (highest-SHAP) appearance so ordering is preserved.
+    chosen: dict[str, dict[str, Any]] = {}
+    for f in pos:
+        c = _CONCEPT.get(f.get("feature"))
+        if c is None:
+            continue
+        chosen[c] = _prefer(chosen[c], f) if c in chosen else f
+    pos = [f for f in pos
+           if _CONCEPT.get(f.get("feature")) is None
+           or chosen.get(_CONCEPT[f["feature"]]) is f]
+
     out: list[str] = []
 
     for f in pos:                                  # pass 1 — specific
