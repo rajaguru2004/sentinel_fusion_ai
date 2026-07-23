@@ -116,9 +116,24 @@ class Contributions(BaseModel):
     p_quantum: float | None = None
 
 
+class DegradedDetail(BaseModel):
+    """Which feature groups were unavailable, and why (requirements §4.1).
+
+    A single boolean could not tell "this customer is brand new" apart from
+    "Redis was down", but the bank should treat those very differently: the
+    first is a normal cold-start, the second means fall back to the heuristic.
+    """
+    degraded: bool = False              # any group missing (legacy meaning)
+    store_unavailable: bool = False     # feature store timed out / errored
+    user_history: bool = False          # no prior events for this user
+    device_history: bool = False        # no prior events for this device
+    bank_context_used: bool = False     # a bank_* value seeded a missing f_*
+
+
 class Explanation(BaseModel):
     model: str
     top_features: list["FeatureAttribution"]
+    reasons: list[str] = []            # plain language, §4.2
 
 
 class FeatureAttribution(BaseModel):
@@ -138,7 +153,10 @@ class ScoreOut(BaseModel):
     scored: bool
     contributions: Contributions
     model_version: str
+    # Kept as a plain bool for one release so existing bank clients need no
+    # coordinated change; `degradation` carries the per-group breakdown.
     degraded: bool = False       # True when scored without live feature-store state
+    degradation: DegradedDetail = DegradedDetail()
     explanation: Explanation | None = None
 
 
@@ -149,6 +167,14 @@ class BatchIn(BaseModel):
 
 class BatchOut(BaseModel):
     results: list[ScoreOut]
+
+
+class IngestOut(BaseModel):
+    """§3.1 fire-and-forget result. `rejected` counts events whose state could
+    not be advanced because the store was unavailable — they are safe to retry
+    (the event_id guard makes a duplicate a no-op)."""
+    accepted: int
+    rejected: int = 0
 
 
 class FeedbackIn(BaseModel):
@@ -163,6 +189,17 @@ class FeedbackOut(BaseModel):
     applied: bool                # False when this event_id was already recorded
 
 
+class FeedbackBatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    items: list[FeedbackIn] = Field(min_length=1)
+
+
+class FeedbackBatchOut(BaseModel):
+    results: list[FeedbackOut]
+    applied: int
+    duplicates: int
+
+
 class HealthOut(BaseModel):
     status: str = "ok"
 
@@ -174,6 +211,9 @@ class ReadyOut(BaseModel):
     scorer_loaded: bool
     store_ok: bool
     model_version: str
+    # Feature-contract fingerprint the loaded bundles were trained under. Lets a
+    # deploy check confirm the running code and artifacts agree.
+    contract_hash: str = "unknown"
 
 
 Explanation.model_rebuild()

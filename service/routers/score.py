@@ -41,7 +41,9 @@ async def _score_events(request: Request, events: list[EventIn],
     settings = get_settings()
     out: list[ScoreOut] = []
     for i, row in enumerate(rows):
-        row["degraded"] = feat_results[i][1]
+        detail = feat_results[i][1]
+        row["degradation"] = detail
+        row["degraded"] = detail.degraded          # legacy mirror
         expl = None
         if explain and settings.enable_explain and row["scored"]:
             raw = st.explainer.explain(merged[i])
@@ -50,8 +52,13 @@ async def _score_events(request: Request, events: list[EventIn],
         out.append(so)
         metrics.SCORED_TOTAL.labels(
             model=so.model or "none", risk_level=so.risk_level).inc()
-        if so.degraded:
+        if detail.store_unavailable:
             metrics.DEGRADED_TOTAL.inc()
+        if detail.user_history:
+            metrics.COLD_ENTITY_TOTAL.labels(entity="user").inc()
+        if detail.device_history:
+            metrics.COLD_ENTITY_TOTAL.labels(entity="device").inc()
+        metrics.RISK_SCORE.labels(model=so.model or "none").observe(so.risk_score)
     return out
 
 

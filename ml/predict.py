@@ -6,8 +6,9 @@ SentinelScorer is the deployment-facing API: give it a dataframe of unified
 events (raw columns, NaNs fine) and it routes each row to its domain model,
 returns per-model scores + fused risk. CPU-only, no training deps at runtime.
 
-Bundles can be injected pre-verified (see ml.registry.verify_and_load) — the
-service uses that path so nothing is unpickled without a checksum match.
+Bundles may be injected pre-built via `bundles=` (the service passes the ones it
+loaded at startup, after service.app.check_contract has verified their
+CONTRACT_HASH matches the running feature contract).
 """
 from __future__ import annotations
 

@@ -193,12 +193,12 @@
   },
   "stage_times_s": {
     "load_split_s": 7.4,
-    "fraud_payment_s": 18.6,
-    "fraud_application_s": 2.8,
+    "fraud_payment_s": 19.7,
+    "fraud_application_s": 3.2,
     "cyber_s": 5.7,
-    "behaviour_s": 2.6,
-    "quantum_s": 2.8,
+    "behaviour_s": 2.7,
+    "quantum_s": 3.1,
     "fusion_s": 0.8
   },
-  "total_s": 41.5
+  "total_s": 43.4
 }

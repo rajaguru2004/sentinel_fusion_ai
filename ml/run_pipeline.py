@@ -1,6 +1,6 @@
 """End-to-end training pipeline.
 
-    .venv/bin/python -m ml.run_pipeline [--fast] [--skip-shap] [--register]
+    .venv/bin/python -m ml.run_pipeline [--fast] [--skip-shap]
 
 Stages: load -> split -> per model (features -> train -> threshold on val ->
 metrics on test -> latency -> SHAP -> serialize) -> fusion engine (calibrate
@@ -11,7 +11,8 @@ df (fixture), alternate output dirs, fast=True for tiny models.
 
 Artifacts (into models_dir / reports_dir):
     <key>_bundle.joblib          model + encoder + medians + threshold + features
-    fraud_xgb.json, cyber_lgbm.txt, quantum_xgb.json    native boosters
+    fraud_payment_xgb.json, fraud_application_xgb.json,
+    cyber_lgbm.txt, quantum_xgb.json                   native boosters
     fusion_engine.joblib, reference_stats.json
     metrics_<key>.json, shap_<key>_*.{png,json}, fusion_report.json,
     fusion_risk_hist.png, split_manifest.json, run_manifest.json, metrics_all.json
@@ -35,6 +36,7 @@ from . import features as F
 from . import train as T
 from .config import (
     BEHAVIOUR_MODEL,
+    CONTRACT_HASH,
     FAST_PARAMS,
     FEATURES,
     FUSION_WEIGHTS,
@@ -121,9 +123,12 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
         metrics["shap_top_features"] = shap_report(model, X_te, key,
                                                    reports_dir=reports_dir)
 
+    # contract_hash pins the feature contract this model was trained under; the
+    # service refuses to start on a mismatch (service/app.py::check_contract).
     bundle = {"model": model, "features": list(X_tr.columns),
               "encoder_mapping": enc.mapping, "medians": medians,
-              "threshold": threshold, "library": lib, "seed": SEED}
+              "threshold": threshold, "library": lib, "seed": SEED,
+              "contract_hash": CONTRACT_HASH}
     joblib.dump(bundle, models_dir / f"{key}_bundle.joblib", compress=3)
     if lib == "xgboost":
         booster = model.get_booster()
@@ -148,7 +153,8 @@ def train_one(key: str, df: pd.DataFrame, split: pd.Series, *,
 def _reference_stats(per_model_Xtr: dict[str, pd.DataFrame],
                      val_scores: dict[str, np.ndarray]) -> dict:
     """Train-time drift baseline: per model, per feature — 10-quantile bin
-    edges + occupancy; plus raw val score deciles. Consumed by ml.drift."""
+    edges + occupancy; plus raw val score deciles. Written to
+    models/reference_stats.json as the drift baseline for downstream monitoring."""
     ref = {}
     qs = np.linspace(0, 1, 11)
     for key, X in per_model_Xtr.items():

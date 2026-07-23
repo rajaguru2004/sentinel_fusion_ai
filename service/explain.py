@@ -14,6 +14,19 @@ import pandas as pd
 from ml.config import route
 from ml.features import CategoryEncoder, build_matrix, impute
 
+from .reasons import describe
+
+
+def _raw_value(ev: Mapping[str, Any], feature: str, encoded: float | None):
+    """Prefer the event's own value for a feature over the encoded matrix cell.
+
+    The matrix holds ordinal codes for categoricals and median-imputed values
+    for IsolationForest paths, so reason templates must read the raw event
+    (which already carries the merged engineered f_* features).
+    """
+    v = ev.get(feature)
+    return encoded if v is None else v
+
 
 class Explainer:
     """Caches one shap.TreeExplainer per model, built on first use."""
@@ -49,10 +62,27 @@ class Explainer:
         if sv.ndim == 3:
             sv = sv[:, :, 1]
         v = sv[0]
-        order = np.argsort(-np.abs(v))[:self._top_k]
+        ranked = np.argsort(-np.abs(v))
+        order = ranked[:self._top_k]
         feats = [{
             "feature": X.columns[i],
             "value": None if pd.isna(X.iloc[0, i]) else round(float(X.iloc[0, i]), 4),
             "shap": round(float(v[i]), 4),
         } for i in order]
-        return {"model": key, "top_features": feats}
+        # `top_features` stays the top-k by |SHAP| (the machine-readable view),
+        # but reasons are drawn from EVERY positively-contributing feature: the
+        # most explainable signal is often not the biggest one. `amount` ranks
+        # first and only yields "unusual transaction amount", while
+        # f_amount_ratio_mean ranks lower and yields "amount is 12x this
+        # customer's normal spend".
+        #
+        # Values come from the RAW event, not the encoded matrix — X holds
+        # ordinal codes for categoricals and median-imputed cells.
+        pool = [{
+            "feature": X.columns[i],
+            "value": _raw_value(ev, X.columns[i],
+                                None if pd.isna(X.iloc[0, i])
+                                else float(X.iloc[0, i])),
+            "shap": float(v[i]),
+        } for i in ranked if v[i] > 0]
+        return {"model": key, "top_features": feats, "reasons": describe(pool)}

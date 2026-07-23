@@ -24,8 +24,8 @@ experiments:     ## bounded improvement experiments (~30 min CPU)
 	$(PY) -m ml.experiments.behaviour_champion
 	$(PY) -m ml.experiments.calibration_check
 
-retrain:         ## retrain all models + register new version
-	$(PY) -m ml.run_pipeline --register
+retrain:         ## retrain all models (writes bundles + CONTRACT_HASH)
+	$(PY) -m ml.run_pipeline
 
 gen-key:         ## generate a strong 256-bit API key for SENTINEL_API_KEYS
 	@openssl rand -hex 32

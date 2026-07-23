@@ -178,3 +178,93 @@ def test_explanation_uses_the_same_model_that_scored(client, auth):
         }, headers=auth).json()
         assert body["model"] == expected, event_type
         assert body["explanation"]["model"] == body["model"], event_type
+
+
+# --------------------------------------------------------------- schema v2 ---
+def _pay(eid, minutes, **kw):
+    import datetime as dt
+    t = dt.datetime(2026, 5, 1, 9, 0, tzinfo=dt.timezone.utc) + dt.timedelta(minutes=minutes)
+    body = {"event_id": eid, "event_domain": "financial",
+            "event_time": t.isoformat().replace("+00:00", "Z"),
+            "event_type": "card_txn", "user_id": "acc-u", "amount": 50.0,
+            "country": "GB", "merchant_category": "grocery_pos",
+            "counterparty_id": "mrc-1"}
+    body.update(kw)
+    return body
+
+
+def test_ingest_builds_history_without_scoring(client, auth):
+    """§3.1 acceptance: streaming context events makes the next /score
+    full-fidelity instead of history-degraded."""
+    cold = client.post("/score", json=_pay("i-cold", 0), headers=auth).json()
+    assert cold["degradation"]["user_history"] is True
+
+    events = [_pay(f"i-ctx{i}", 10 * (i + 1), event_type="balance_check")
+              for i in range(6)]
+    r = client.post("/ingest/batch", json={"events": events}, headers=auth)
+    assert r.status_code == 202
+    assert r.json() == {"accepted": 6, "rejected": 0}
+
+    warm = client.post("/score", json=_pay("i-warm", 120), headers=auth).json()
+    assert warm["degradation"]["user_history"] is False
+    assert warm["degradation"]["store_unavailable"] is False
+
+
+def test_score_is_idempotent_on_replay(client, auth):
+    """§3.2: replaying an event_id must not double-advance the store."""
+    for i in range(3):
+        client.post("/score", json=_pay(f"idem-{i}", 200 + 10 * i), headers=auth)
+    first = client.post("/score", json=_pay("idem-x", 260), headers=auth).json()
+    replay = client.post("/score", json=_pay("idem-x", 260), headers=auth).json()
+    assert replay["risk_score"] == first["risk_score"]
+
+
+def test_bank_context_accepted_and_used_on_cold_store(client, auth):
+    """§3.3: the bank's own signals must reach the model, not be rejected."""
+    body = _pay("bank-1", 300, user_id="brand-new-user", amount=9000.0,
+                name_mismatch=1, counterparty_is_new=1, counterparty_age_s=300,
+                bank_txn_count_1h=9, bank_amount_vs_user_mean=42.0,
+                bank_is_new_beneficiary=1)
+    r = client.post("/score", json=body, headers=auth)
+    assert r.status_code == 200, r.text          # v1 rejected these with 422
+    assert r.json()["degradation"]["bank_context_used"] is True
+
+
+def test_feedback_batch_is_idempotent(client, auth):
+    # distinct ids: the client fixture is session-scoped, so the store carries
+    # state across tests and "fb-1" is already claimed by test_feedback_*
+    items = [{"event_id": "fbb-1", "user_id": "u", "label": 1},
+             {"event_id": "fbb-2", "user_id": "u", "label": 0}]
+    first = client.post("/feedback/batch", json={"items": items}, headers=auth).json()
+    assert first["applied"] == 2 and first["duplicates"] == 0
+    again = client.post("/feedback/batch", json={"items": items}, headers=auth).json()
+    assert again["applied"] == 0 and again["duplicates"] == 2
+
+
+def test_ready_reports_contract_hash(client):
+    from ml.feature_spec import CONTRACT_HASH
+    assert client.get("/ready").json()["contract_hash"] == CONTRACT_HASH
+
+
+def test_ingest_is_cheaper_than_score(client, auth):
+    """§3.1 rationale: /ingest exists because it skips model inference.
+
+    If it were not materially cheaper there would be no reason for the bank to
+    stream context events on the money path at all.
+    """
+    import time
+    ev = _pay("perf-warm", 500, event_type="balance_check")
+    client.post("/ingest", json=ev, headers=auth)          # warm caches
+
+    def _timed(path, n, prefix):
+        t0 = time.perf_counter()
+        for i in range(n):
+            client.post(path, json=_pay(f"{prefix}{i}", 600 + i,
+                                        event_type="balance_check"), headers=auth)
+        return (time.perf_counter() - t0) / n
+
+    ingest_ms = _timed("/ingest", 20, "perf-i") * 1e3
+    score_ms = _timed("/score", 20, "perf-s") * 1e3
+    assert ingest_ms < score_ms, f"ingest {ingest_ms:.2f}ms !< score {score_ms:.2f}ms"
+    # Sanity: both must fit comfortably inside the bank's ~800 ms client budget.
+    assert score_ms < 200, f"score p_avg {score_ms:.1f}ms too slow"

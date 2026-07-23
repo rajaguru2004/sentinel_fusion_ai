@@ -27,4 +27,5 @@ async def ready(request: Request, response: Response) -> ReadyOut:
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return ReadyOut(ready=ready, scorer_loaded=scorer_loaded, store_ok=store_ok,
-                    model_version=getattr(st, "model_version", "unknown"))
+                    model_version=getattr(st, "model_version", "unknown"),
+                    contract_hash=getattr(st, "contract_hash", "unknown"))
