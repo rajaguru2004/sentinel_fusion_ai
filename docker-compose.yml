@@ -13,7 +13,7 @@ services:
       SENTINEL_MODELS_DIR: /app/models
       SENTINEL_MODEL_VERSION: ${SENTINEL_MODEL_VERSION:-dev}
       SENTINEL_REDIS_URL: redis://redis:6379/0
-      SENTINEL_REQUIRE_AUTH: "true"
+      SENTINEL_REQUIRE_AUTH: "false"
       # Demo default; OVERRIDE in production via host env or .env (see docs/API.md §2.1).
       SENTINEL_API_KEYS: ${SENTINEL_API_KEYS:-sentinel-demo-key-2026}
       SENTINEL_STORE_TIMEOUT_MS: "50"

@@ -42,8 +42,8 @@ COPY service/ ./service/
 COPY models/ ./models/
 
 # Non-root.
-RUN useradd -r -u 10001 sentinel && chown -R sentinel:sentinel /app
-USER sentinel
+RUN groupadd -g 10001 sentinel && useradd -u 10001 -g sentinel -m -s /bin/false sentinel && chown -R sentinel:sentinel /app
+USER 10001:10001
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \

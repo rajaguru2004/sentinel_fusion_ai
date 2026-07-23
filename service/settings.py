@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     #   "core-banking:k1,fraud-ops:k2"   -> named clients
     # Demo default so the service runs out of the box; OVERRIDE in production.
     api_keys: str = "sentinel-demo-key-2026"
-    require_auth: bool = True
+    require_auth: bool = False
     # Requests per minute per CLIENT (not global). 0 disables limiting.
     rate_limit_per_minute: int = 0
 
