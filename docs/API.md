@@ -1,115 +1,106 @@
 # Sentinel Fusion AI — Risk Scoring API Reference
 
-**Version:** 1.0.0
+**Schema version:** v2
 **Audience:** Banking platform / integration engineers
 **Protocol:** HTTP/JSON (REST)
 **Default base URL:** `http://<host>:8000`
+
+Every example response in this document was captured from a running instance.
 
 ---
 
 ## 1. What this API does
 
-Sentinel Fusion AI scores security and financial events for risk in real time. A
-single event is submitted; the service routes it to the appropriate specialist
-model, enriches it with the actor's historical behaviour (from an online feature
-store), and returns one calibrated **risk score** (`0.0`–`1.0`) and **risk level**
-(`low` / `medium` / `high` / `critical`), together with the per-domain
-contributions and — on request — a model explanation.
+Sentinel Fusion AI scores banking and security events for risk in real time. An
+event is submitted; the service routes it to a specialist model, enriches it with
+the actor's history from an online feature store, and returns one calibrated
+**risk score** (`0.0`–`1.0`), a **risk level**, per-model contributions and —
+on request — an explanation in plain language.
 
-Four specialist models sit behind one endpoint; the caller never chooses a model,
-the `event_domain` field routes automatically:
+The caller never picks a model. Routing is automatic on
+`(event_domain, event_type)`:
 
-| `event_domain` | Model | Detects |
-|---|---|---|
-| `financial` | Fraud (XGBoost) | Card / transfer / account-opening fraud |
-| `cyber` | Cyber (LightGBM) | Network intrusion, malicious process/flow |
-| `behaviour` | Behaviour (LightGBM) | Account takeover, insider anomaly |
-| `quantum` | Quantum/HNDL (XGBoost) | Harvest-now-decrypt-later cryptographic risk |
-| `threat_intel` | *(none)* | Context only — returned unscored |
+| `event_domain` | `event_type` | Model | Detects |
+|---|---|---|---|
+| `financial` | `account_open` | `fraud_application` | Account-opening fraud |
+| `financial` | anything else | `fraud_payment` | Payment / card fraud |
+| `cyber` | — | `cyber` | Network intrusion, malicious process/flow |
+| `behaviour` | — | `behaviour` | Account takeover, insider anomaly |
+| `quantum` | — | `quantum` | Harvest-now-decrypt-later cryptographic risk |
+| `threat_intel` | — | *(none)* | Context only — returned unscored |
 
-Typical integration: call `POST /score` inline in a transaction/authentication
-flow, act on `risk_level`, then later confirm the true outcome via `POST /feedback`
-so the actor's risk history sharpens over time.
+> **Changed in v2.** The single `fraud` model was split into `fraud_payment` and
+> `fraud_application`. `model` in the response now returns those names, and
+> `contributions` gained `p_fraud_payment` / `p_fraud_application`. `p_fraud` is
+> kept as a **deprecated** mirror of whichever fraud head fired, so an existing
+> client keeps working without a coordinated release.
+
+### Typical integration
+
+```
+beneficiary added / login / balance check  ->  POST /ingest      (202, no score)
+payment initiated / card purchase          ->  POST /score       (act on risk_level)
+chargeback / SOC adjudication              ->  POST /feedback
+```
+
+**Stream the context events.** `/ingest` builds the customer's history without
+paying for model inference. Without it the feature store stays empty, every
+payment scores with `degradation.user_history: true`, and velocity features never
+fire.
 
 ---
 
 ## 2. Authentication
 
-All scoring and feedback endpoints require a static API key in a request header:
+All scoring, ingest and feedback endpoints require an API key header:
 
 ```
 X-API-Key: <your-key>
 ```
 
-Keys are provisioned per integrating system and supplied out of band. A missing or
-unrecognised key returns **HTTP 401**. The operational endpoints (`/health`,
-`/ready`, `/metrics`) are unauthenticated.
+`/health`, `/ready` and `/metrics` are unauthenticated (for orchestrators).
 
-> **Demo / development key.** For local development and the demo deployment a preset
-> key is used:
->
-> ```
-> X-API-Key: sentinel-demo-key-2026
-> ```
->
-> It is the built-in default (both the app and `docker-compose.yml`), so
-> `docker compose up -d` — or a plain `uvicorn` run — works out of the box.
-> **This key is for development only — override it in production** by setting
-> `SENTINEL_API_KEYS` (see §2.1). All examples below use this demo key.
+> **Demo key.** `sentinel-demo-key-2026` is the built-in default so
+> `docker compose up -d` works out of the box. **Development only — override in
+> production** via `SENTINEL_API_KEYS`.
 
-### 2.1 Provisioning & rotating API keys
+### 2.1 Named keys, per-client rate limiting
 
-There is no self-service key endpoint by design — keys are **operator-provisioned
-secrets**, not user-registerable. The server validates an incoming `X-API-Key`
-against a configured allow-list (`SENTINEL_API_KEYS`, comma-separated); a key is
-valid iff it is a member of that list.
-
-**1. Generate a strong key** (256-bit random, per consuming system):
+Keys are **named**, so traffic is attributable and one integration can be
+throttled or revoked without touching the others:
 
 ```bash
-openssl rand -hex 32
-# or:  make gen-key
-# e.g. 9f2c7b1e5a084d3c6e0b8f4a1d7c2e9b3a6f5c8d0e1b4a7c2f9d6e3b8a1c4f7e
+# named (recommended)
+SENTINEL_API_KEYS="core-banking:9f2c7b1e...,fraud-ops:3a6f5c8d..."
+
+# unnamed (legacy) — clients are auto-named client-1, client-2, ...
+SENTINEL_API_KEYS="9f2c7b1e...,3a6f5c8d..."
 ```
 
-Issue **one key per integrating system** (e.g. one for the core banking app, one for
-the fraud-ops console) so each can be rotated or revoked independently and traffic is
-attributable.
+Only the **first** `:` separates name from key, so a key may itself contain `:`.
 
-**2. Configure the server** — set the key(s) at deploy time via environment (never in
-code or git):
+Generate a strong key per integrating system:
 
 ```bash
-# single tenant
-SENTINEL_API_KEYS="9f2c7b1e...4f7e"
-
-# multiple tenants (comma-separated, no spaces)
-SENTINEL_API_KEYS="9f2c7b1e...4f7e,3a6f5c8d...1c4f"
+openssl rand -hex 32     # or: make gen-key
 ```
 
-With `docker compose`, supply it via the host environment or an `.env` file next to
-`docker-compose.yml`:
+Rate limiting is **per client**, not global:
 
+```bash
+SENTINEL_RATE_LIMIT_PER_MINUTE=600     # 0 (default) disables it
 ```
-SENTINEL_API_KEYS=9f2c7b1e...4f7e
-```
 
-Treat keys as secrets: inject from your secrets manager (Vault / AWS Secrets Manager /
-K8s Secret); the repo `.env` is gitignored and must not be committed.
+Exceeding it returns **429** with a `Retry-After` header. A noisy client cannot
+throttle anyone else. Per-client volume is exported as
+`sentinel_requests_total{client=...}`.
 
-**3. Rotate without downtime** — keys overlap:
+**Rotation without downtime:** add the new key alongside the old
+(`"core:OLD,core-new:NEW"`), migrate the caller, then remove the old one.
 
-1. Generate the new key.
-2. Add it **alongside** the old one: `SENTINEL_API_KEYS="OLD,NEW"`; redeploy.
-3. Move the calling system to `NEW`.
-4. Remove `OLD`: `SENTINEL_API_KEYS="NEW"`; redeploy.
-
-**Revoke** a key by removing it from the list and redeploying.
-
-**Fail-closed:** if `SENTINEL_REQUIRE_AUTH=true` (the default) but no keys are
-configured, the scoring endpoints return **HTTP 503** (`{"detail":"authentication not
-configured"}`) rather than accepting unauthenticated traffic. `SENTINEL_REQUIRE_AUTH=false`
-disables the check entirely and is intended only for isolated local development.
+**Fail-closed:** if `SENTINEL_REQUIRE_AUTH=true` (default) but no keys are
+configured, scoring endpoints return **503**, never unauthenticated traffic.
+Keys are compared with `secrets.compare_digest` (constant time).
 
 ---
 
@@ -118,53 +109,40 @@ disables the check entirely and is intended only for isolated local development.
 | Header | Required | Value |
 |---|---|---|
 | `Content-Type` | Yes (POST) | `application/json` |
-| `X-API-Key` | Yes (score/feedback) | Provisioned API key |
+| `X-API-Key` | Yes (score/ingest/feedback) | Provisioned API key |
 
-All timestamps are **ISO-8601, timezone-aware, UTC** (e.g. `2026-07-20T14:05:00Z`).
-A naive (no timezone) timestamp is rejected with HTTP 422.
+All timestamps are **ISO-8601, timezone-aware, UTC**. A naive timestamp is
+rejected with 422.
 
 ---
 
-## 4. Standard error model
+## 4. Errors
 
-Two error body shapes are returned:
-
-**a) Request validation errors (HTTP 422)** — FastAPI/Pydantic format, a list under
-`detail`, one entry per offending field:
+**Validation errors (422)** — FastAPI/Pydantic list under `detail`:
 
 ```json
-{
-  "detail": [
-    {
-      "type": "extra_forbidden",
-      "loc": ["body", "foo"],
-      "msg": "Extra inputs are not permitted",
-      "input": 1
-    }
-  ]
-}
+{ "detail": [ { "type": "extra_forbidden", "loc": ["body","foo"],
+                "msg": "Extra inputs are not permitted", "input": 1 } ] }
 ```
 
-**b) Application errors** — a single human-readable string under `detail`:
+**Application errors** — a single string under `detail`:
 
 ```json
 { "detail": "invalid or missing X-API-Key" }
 ```
 
-### HTTP status codes
-
 | Code | Meaning | When |
 |---|---|---|
-| 200 | OK | Scored / accepted successfully |
+| 200 | OK | Scored / accepted |
+| 202 | Accepted | `/ingest` — state advanced, no score returned |
 | 401 | Unauthorized | Missing or invalid `X-API-Key` |
 | 413 | Payload Too Large | Batch exceeds `max_batch` (default 1000) |
 | 422 | Unprocessable Content | Body validation failed, or `event_time` too far in the future |
-| 501 | Not Implemented | `?explain=true` requested but explanations are disabled |
-| 503 | Service Unavailable | Not ready (models loading / store unreachable), or auth not configured |
+| 429 | Too Many Requests | Per-client rate limit exceeded (`Retry-After` header) |
+| 501 | Not Implemented | `?explain=true` while explanations are disabled |
+| 503 | Service Unavailable | Not ready, or auth required but unconfigured |
 
-> **Note on `scored: false`** — a `threat_intel` event, or any domain with no model,
-> returns HTTP **200** with `scored: false` and `risk_score: 0.0`. This is a valid,
-> expected response, not an error.
+> `scored: false` (e.g. `threat_intel`) is **HTTP 200**, not an error.
 
 ---
 
@@ -172,383 +150,430 @@ Two error body shapes are returned:
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET  | `/health` | — | Liveness probe |
-| GET  | `/ready` | — | Readiness probe |
-| POST | `/score` | ✔ | Score a single event |
+| GET  | `/health` | — | Liveness |
+| GET  | `/ready` | — | Readiness + contract hash + breaker state |
+| POST | `/score` | ✔ | Score one event |
 | POST | `/score/batch` | ✔ | Score up to `max_batch` events |
-| POST | `/feedback` | ✔ | Submit a confirmed label for an event |
+| POST | `/ingest` | ✔ | Build history **without** scoring |
+| POST | `/ingest/batch` | ✔ | Bulk context events |
+| POST | `/feedback` | ✔ | Confirmed label for one event |
+| POST | `/feedback/batch` | ✔ | Bulk adjudication backfill |
 | GET  | `/metrics` | — | Prometheus metrics |
 
 ---
 
 ### 5.1 `GET /health`
 
-Liveness. Always returns 200 while the process is running. Use for load-balancer
-liveness checks.
+Liveness; always 200 while the process runs.
 
-**Request:** no headers, no body.
-
-**Response — 200:**
 ```json
 { "status": "ok" }
 ```
 
----
-
 ### 5.2 `GET /ready`
 
-Readiness. Returns 200 only when the models are loaded **and** the feature store is
-reachable; otherwise **503** with the same body so you can see which component is
-down. Use to gate traffic (e.g. Kubernetes readiness probe).
+200 only when models are loaded **and** the store is reachable; otherwise 503
+with the same shape.
 
-**Request:** no headers, no body.
-
-**Response — 200 (ready):**
 ```json
 {
   "ready": true,
   "scorer_loaded": true,
   "store_ok": true,
-  "model_version": "v1.0.0"
+  "model_version": "dev",
+  "contract_hash": "ec65b4e5353c0928",
+  "store_breaker": "closed"
 }
 ```
 
-**Response — 503 (not ready):** same shape with `"ready": false` and whichever of
-`scorer_loaded` / `store_ok` is `false`.
+| Field | Meaning |
+|---|---|
+| `contract_hash` | Fingerprint of the feature contract the loaded models were trained under. The service **refuses to start** if code and artifacts disagree — use this in a deploy check. |
+| `store_breaker` | `closed` healthy · `degraded` recent faults · `open` store calls are being skipped (§6) |
 
 ---
 
 ### 5.3 `POST /score`
 
-Score a single event.
+**Query:** `explain` (bool, default `false`).
 
-**Headers:** `Content-Type: application/json`, `X-API-Key: <key>`
-
-**Query parameters:**
-
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `explain` | boolean | `false` | When `true`, include SHAP feature attributions for the routed model |
-
-**Request body — field reference:**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `event_id` | string | **Yes** | Caller-unique event identifier (echoed back; used for feedback) |
-| `event_domain` | enum | **Yes** | `financial` \| `cyber` \| `behaviour` \| `quantum` \| `threat_intel` |
-| `event_time` | string (ISO-8601 UTC, tz-aware) | **Yes** | Event timestamp; drives temporal features and history ordering |
-| `user_id` | string | No | Actor identifier; enables per-user history features |
-| `device_id` | string | No | Device/host identifier; enables per-device history features |
-| `event_type` | string | No | Normalised type, e.g. `card_txn`, `network_flow`, `login`, `tls_handshake` |
-| `event_subtype` | string | No | Finer classification, e.g. `wire_transfer`, `dns` |
-| `country` | string | No | ISO-3166 alpha-2 country of the actor |
-| `amount` | number | No | Monetary amount (financial events) |
-| `bytes_in` | number | No | Bytes received |
-| `bytes_out` | number | No | Bytes sent |
-| `src_port` | integer | No | Source port |
-| `dst_port` | integer | No | Destination port |
-| `protocol` | string | No | `tcp`, `udp`, `icmp`, … |
-| `duration_s` | number | No | Session/flow/transaction duration (seconds) |
-| `severity` | integer | No | 0–4 severity. **Not a scoring input** — only feeds the device's high-severity history for future events |
-| `q_key_exchange` | string | No | (quantum) TLS key-exchange algorithm |
-| `q_cert_key_type` | string | No | (quantum) Certificate key type |
-| `q_data_class` | string | No | (quantum) Data classification |
-| `q_cert_age_days` | number | No | (quantum) Certificate age (days) |
-| `q_cert_validity_days` | number | No | (quantum) Certificate validity window (days) |
-
-Rules:
-- Only `event_id`, `event_domain`, `event_time` are mandatory. Send whatever else you
-  have; **absent fields are handled natively by the models** (they are not an error).
-- **Unknown fields are rejected** with HTTP 422 — this protects the contract from
-  silent typos. Send only the fields listed above.
-
-**Request example:**
-```json
-{
-  "event_id": "txn-100493",
-  "event_domain": "financial",
-  "event_time": "2026-07-20T14:05:00Z",
-  "event_type": "card_txn",
-  "user_id": "cust-8841",
-  "amount": 4210.55,
-  "country": "GB"
-}
-```
-
-**Response body — field reference:**
+#### Required fields
 
 | Field | Type | Description |
 |---|---|---|
-| `event_id` | string | Echoed from the request |
-| `model` | string \| null | Routed model (`fraud`/`cyber`/`behaviour`/`quantum`); `null` if unscored |
-| `raw_score` | number \| null | Uncalibrated model score; `null` if unscored |
-| `risk_score` | number | Fused risk, `0.0`–`1.0` |
-| `risk_level` | enum | `low` \| `medium` \| `high` \| `critical` |
-| `scored` | boolean | `false` for uncovered domains (e.g. `threat_intel`) |
-| `contributions` | object | Per-domain calibrated probability (`p_fraud`/`p_cyber`/`p_behaviour`/`p_quantum`); `null` where the domain did not fire |
-| `model_version` | string | Model/version identifier |
-| `degraded` | boolean | `true` if scored without live history (feature store unreachable). Score is still valid, just without behavioural features |
-| `explanation` | object \| null | Present only when `?explain=true` (see below) |
+| `event_id` | string | Caller-unique. **Idempotency key** — see §6 |
+| `event_domain` | enum | `financial` \| `cyber` \| `behaviour` \| `quantum` \| `threat_intel` |
+| `event_time` | ISO-8601 UTC, tz-aware | Drives temporal features and history ordering |
 
-Risk-level bands: `low` `[0.00, 0.25)`, `medium` `[0.25, 0.50)`, `high` `[0.50, 0.75)`,
-`critical` `[0.75, 1.00]`.
+Everything else is optional; absent fields are handled natively by the models.
+**Unknown fields are rejected with 422**, which protects the contract from typos.
 
-**Response — 200 (financial, scored):**
+#### Core optional fields
+
+`user_id`, `device_id`, `event_type`, `event_subtype`, `country`, `amount`,
+`bytes_in`, `bytes_out`, `src_port`, `dst_port`, `protocol`, `duration_s`,
+`severity`.
+
+> `severity` is **not** a scoring input. It only feeds a device's high-severity
+> history for future events.
+
+#### Banking fields (new in v2)
+
+These are **trained features** of `fraud_payment` — sending them materially
+changes the score. v1 rejected them outright.
+
+| Group | Fields |
+|---|---|
+| Counterparty | `counterparty_id`, `counterparty_country`, `counterparty_is_new`, `counterparty_age_s`, `name_mismatch`, `counterparty_lat`, `counterparty_lon` |
+| Balances | `balance_before`, `balance_after`, `counterparty_balance_before`, `counterparty_balance_after` |
+| Customer | `customer_age`, `account_age_s`, `income`, `email_is_free` |
+| Channel/device | `channel`, `device_os`, `device_is_new`, `session_length_s`, `is_foreign_request` |
+| Merchant / geo | `merchant_id`, `merchant_category`, `geo_lat`, `geo_lon` |
+| Transaction | `currency`, `payment_type`, `is_credit` |
+| Quantum | `q_key_exchange`, `q_cert_key_type`, `q_data_class`, `q_cert_age_days`, `q_cert_validity_days` |
+
+#### Bank-computed block
+
+Map straight from FinSpark's own fields:
+
+| Send | From |
+|---|---|
+| `bank_txn_count_1h` | `txnCountLastHour` |
+| `bank_amount_vs_user_mean` | `amountVsUserMean` |
+| `bank_beneficiary_age_s` | `beneficiaryAgeMinutes` × 60 |
+| `bank_is_new_beneficiary` | `isNewBeneficiary` |
+
+**Precedence:** a store-computed feature wins whenever available; the `bank_*`
+value seeds the equivalent when the store is cold. Send both — they are also
+independent trained features, and they are what makes a first-ever payment score
+on real signal instead of empty history.
+
+#### Request
+
 ```json
 {
-  "event_id": "txn-100493",
-  "model": "fraud",
-  "raw_score": 0.07999324053525925,
-  "risk_score": 0.00483549851924181,
+  "event_id": "txn-bad",
+  "event_domain": "financial",
+  "event_type": "card_txn",
+  "event_time": "2026-07-09T13:20:00Z",
+  "user_id": "cust-8841",
+  "amount": 9000.0,
+  "country": "GB",
+  "channel": "pos",
+  "currency": "GBP",
+  "is_credit": 0,
+  "merchant_category": "shopping_net",
+  "counterparty_id": "brand-new",
+  "counterparty_age_s": 300,
+  "name_mismatch": 1,
+  "bank_txn_count_1h": 8
+}
+```
+
+#### Response fields
+
+| Field | Type | Description |
+|---|---|---|
+| `event_id` | string | Echoed |
+| `model` | string \| null | `fraud_payment`, `fraud_application`, `cyber`, `behaviour`, `quantum`; `null` if unscored |
+| `raw_score` | number \| null | Uncalibrated model output |
+| `risk_score` | number | Fused, **calibrated probability** `0.0`–`1.0` |
+| `risk_level` | enum | `low` \| `medium` \| `high` \| `critical` |
+| `scored` | boolean | `false` for uncovered domains |
+| `contributions` | object | Per-model calibrated probability; `null` where that model did not fire |
+| ↳ | | `p_fraud_payment`, `p_fraud_application`, `p_cyber`, `p_behaviour`, `p_quantum`, and the deprecated `p_fraud` |
+| `model_version` | string | Deployed build identifier — log it with every decision |
+| `degraded` | boolean | **Deprecated** mirror of `degradation.degraded` |
+| `degradation` | object | Per-group breakdown — see below |
+| `explanation` | object \| null | Only with `?explain=true` |
+
+#### `degradation` (new in v2)
+
+A single boolean could not distinguish "brand-new customer" from "Redis is
+down"; those need different responses from the bank.
+
+| Field | Meaning | What to do |
+|---|---|---|
+| `store_unavailable` | Feature store timed out or errored | **Alert.** Consider your heuristic fallback |
+| `user_history` | No prior events for this customer | Normal for a new customer — stream `/ingest` |
+| `device_history` | No prior events for this device | Normal for a new device |
+| `bank_context_used` | A `bank_*` value filled a missing feature | Informational |
+| `degraded` | Any of the above | Legacy summary |
+
+#### Response — normal payment (verified)
+
+```json
+{
+  "event_id": "txn-ok",
+  "model": "fraud_payment",
+  "raw_score": 0.005160215310752392,
+  "risk_score": 0.000039912589272717,
   "risk_level": "low",
   "scored": true,
   "contributions": {
-    "p_fraud": 0.00483549851924181,
-    "p_cyber": null,
-    "p_behaviour": null,
-    "p_quantum": null
+    "p_fraud": 0.000039912589272717,
+    "p_fraud_payment": 0.000039912589272717,
+    "p_fraud_application": null,
+    "p_cyber": null, "p_behaviour": null, "p_quantum": null
   },
-  "model_version": "v1.0.0",
+  "model_version": "dev",
   "degraded": false,
+  "degradation": {
+    "degraded": false, "store_unavailable": false,
+    "user_history": false, "device_history": false,
+    "bank_context_used": false
+  },
   "explanation": null
 }
 ```
 
-**Response — 200 (threat_intel, unscored):**
+#### Response — fraud-shaped payment, `?explain=true` (verified)
+
 ```json
 {
-  "event_id": "ti-1",
-  "model": null,
-  "raw_score": null,
-  "risk_score": 0.0,
-  "risk_level": "low",
-  "scored": false,
-  "contributions": {
-    "p_fraud": null, "p_cyber": null, "p_behaviour": null, "p_quantum": null
-  },
-  "model_version": "v1.0.0",
-  "degraded": false,
-  "explanation": null
-}
-```
-
-#### Explanation (`?explain=true`)
-
-When requested on a scored event, `explanation` contains the top contributing
-features for the routed model, each with its value and signed SHAP attribution
-(positive pushes risk up, negative pulls it down).
-
-**Request:** `POST /score?explain=true` with a `cyber` event.
-
-**Response — 200 (truncated to show shape):**
-```json
-{
-  "event_id": "evt-cyber-77",
-  "model": "cyber",
-  "raw_score": 0.9745387920363321,
-  "risk_score": 0.9922480620155039,
+  "event_id": "txn-bad",
+  "model": "fraud_payment",
+  "raw_score": 0.9982006549835205,
+  "risk_score": 1.0,
   "risk_level": "critical",
   "scored": true,
-  "contributions": { "p_fraud": null, "p_cyber": 0.9922480620155039, "p_behaviour": null, "p_quantum": null },
-  "model_version": "v1.0.0",
+  "contributions": { "p_fraud": 1.0, "p_fraud_payment": 1.0,
+                     "p_fraud_application": null, "p_cyber": null,
+                     "p_behaviour": null, "p_quantum": null },
+  "model_version": "dev",
   "degraded": false,
+  "degradation": { "degraded": false, "store_unavailable": false,
+                   "user_history": false, "device_history": false,
+                   "bank_context_used": false },
   "explanation": {
-    "model": "cyber",
+    "model": "fraud_payment",
     "top_features": [
-      { "feature": "f_device_past_hisev_count", "value": 0.0,    "shap": -6.479  },
-      { "feature": "f_user_secs_since_last",     "value": 60.0,   "shap": 3.0517  },
-      { "feature": "dst_port",                   "value": 4444.0, "shap": 2.7076  },
-      { "feature": "f_user_past_malicious_rate", "value": 0.0,    "shap": -2.6152 },
-      { "feature": "f_device_seq_no",            "value": 0.0,    "shap": 2.0828  },
-      { "feature": "bytes_out",                  "value": 9000.0, "shap": -0.312  },
-      { "feature": "duration_s",                 "value": null,   "shap": -0.261  }
+      { "feature": "amount",                         "value": 9000.0, "shap": 3.2719 },
+      { "feature": "bank_txn_count_1h",              "value": 8.0,    "shap": 1.5790 },
+      { "feature": "f_log1p_amount",                 "value": 9.1051, "shap": 0.9195 },
+      { "feature": "f_hour_cos",                     "value": 0.8660, "shap": 0.7784 },
+      { "feature": "customer_age",                   "value": 41.0,   "shap": -0.6590 },
+      { "feature": "merchant_category",              "value": 11.0,   "shap": -0.6575 },
+      { "feature": "f_user_distinct_counterparties", "value": 3.0,    "shap": 0.5377 }
+    ],
+    "reasons": [
+      "8 transactions by this customer in the past hour",
+      "beneficiary was added 5 minutes ago",
+      "amount is far outside this customer's usual range",
+      "first ever payment to this beneficiary"
     ]
   }
 }
 ```
 
-`explanation.top_features[].value` may be `null` when the underlying feature was not
-provided for that event.
+`explanation.reasons` is the analyst-facing view — use it for case queues and
+risk badges; `top_features` is the machine-readable SHAP view. **`reasons` is
+empty when nothing notable fired**: benign traffic gets no invented narrative.
 
-**Error responses for `/score`:**
-
-- **401** — missing/invalid key: `{ "detail": "invalid or missing X-API-Key" }`
-- **422** — unknown field:
-  ```json
-  { "detail": [ { "type": "extra_forbidden", "loc": ["body","foo"], "msg": "Extra inputs are not permitted", "input": 1 } ] }
-  ```
-- **422** — naive timestamp:
-  ```json
-  { "detail": [ { "type": "value_error", "loc": ["body","event_time"], "msg": "Value error, event_time must be timezone-aware (UTC)", "input": "2026-07-20T14:05:00", "ctx": { "error": {} } } ] }
-  ```
-- **422** — missing required fields:
-  ```json
-  { "detail": [ { "type": "missing", "loc": ["body","event_domain"], "msg": "Field required", "input": { "event_id": "x" } }, { "type": "missing", "loc": ["body","event_time"], "msg": "Field required", "input": { "event_id": "x" } } ] }
-  ```
-- **422** — event too far in the future (clock-skew guard, default 300s):
-  ```json
-  { "detail": "event_time is 30687351843s in the future" }
-  ```
-- **501** — `?explain=true` while explanations disabled: `{ "detail": "explanations disabled" }`
+`?explain=true` costs tens of milliseconds. Use it for case review, not the hot
+path.
 
 ---
 
-### 5.4 `POST /score/batch`
+### 5.4 Risk bands
 
-Score multiple events in one call. Results are returned **in request order**. Up to
-`max_batch` events (default 1000).
+`risk_score` is a **genuine calibrated probability**, so at a real fraud base
+rate (~0.3%) even a strong signal sits well below 0.25. Fixed 0.25/0.50/0.75
+cut points would therefore report almost everything as `low`.
 
-**Headers:** `Content-Type: application/json`, `X-API-Key: <key>`
-**Query parameters:** `explain` (boolean, default `false`) — as for `/score`.
+Bands are instead **fitted per model**, each edge being the cost-optimal
+threshold at a stated cost ratio (`c_fn/c_fp` = 60 / 20 / 5), so every boundary
+maps to a business trade-off. Current deployed cut points:
 
-**Request body:**
+| model | low → medium | medium → high | high → critical |
+|---|---:|---:|---:|
+| `fraud_payment` | 0.0138 | 0.0396 | 0.2430 |
+| `fraud_application` | 0.0922 | 0.2760 | 0.6471 |
+| `cyber` | 0.0069 | 0.1559 | 0.1837 |
+| `behaviour` | 0.0574 | 0.1148 | 0.4074 |
+| `quantum` | 0.25 | 0.50 | 0.75 |
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `events` | array of Event objects | **Yes** | 1..`max_batch` events; each object is exactly the `/score` body |
+**Do not hardcode these.** They are refitted on every retrain and travel in
+`models/fusion_engine.joblib`. Band on `risk_level`; use `risk_score` for
+ranking, audit and monitoring.
 
-```json
-{
-  "events": [
-    { "event_id": "txn-100493", "event_domain": "financial", "event_time": "2026-07-20T14:05:00Z", "event_type": "card_txn", "user_id": "cust-8841", "amount": 4210.55, "country": "GB" },
-    { "event_id": "ti-1", "event_domain": "threat_intel", "event_time": "2026-07-20T14:08:00Z", "event_type": "ioc_ip" }
-  ]
-}
-```
+Measured operating point for `fraud_payment` (286,170 held-out events, 0.34%
+base rate):
 
-**Response — 200:**
-```json
-{
-  "results": [
-    {
-      "event_id": "txn-100493",
-      "model": "fraud",
-      "raw_score": 0.07218026369810104,
-      "risk_score": 0.00483549851924181,
-      "risk_level": "low",
-      "scored": true,
-      "contributions": { "p_fraud": 0.00483549851924181, "p_cyber": null, "p_behaviour": null, "p_quantum": null },
-      "model_version": "v1.0.0",
-      "degraded": false,
-      "explanation": null
-    },
-    {
-      "event_id": "ti-1",
-      "model": null,
-      "raw_score": null,
-      "risk_score": 0.0,
-      "risk_level": "low",
-      "scored": false,
-      "contributions": { "p_fraud": null, "p_cyber": null, "p_behaviour": null, "p_quantum": null },
-      "model_version": "v1.0.0",
-      "degraded": false,
-      "explanation": null
-    }
-  ]
-}
-```
+| band | share of traffic | recall | precision |
+|---|---:|---:|---:|
+| `critical` | 0.39% | 85.4% | 73.2% |
+| `high` + `critical` | **0.99%** | **94.1%** | 32.0% |
+| `low` | 98.64% | — | misses 4.0% of fraud |
 
-**Error responses:**
-- **422** — empty `events` array, or any event fails validation (same shapes as `/score`).
-- **413** — batch exceeds the limit: `{ "detail": "batch exceeds max_batch=1000" }`
-
-> Ordering note: events for the same `user_id` in one batch are advanced through the
-> feature store in `event_time` order internally, so history features are consistent
-> regardless of array order.
+Reviewing ~1% of transactions catches ~94% of fraud.
 
 ---
 
-### 5.5 `POST /feedback`
+### 5.5 `POST /score/batch`
 
-Submit the confirmed outcome (true label) for a previously scored event. This
-updates the user's malicious-history counter (`f_user_past_malicious_rate`), so
-future scores for that user reflect confirmed incidents. Idempotent per `event_id`.
+Up to `max_batch` events (default 1000); results returned **in request order**.
 
-**Headers:** `Content-Type: application/json`, `X-API-Key: <key>`
+```json
+{ "events": [ { "...event..." }, { "...event..." } ] }
+```
 
-**Request body:**
+Response: `{ "results": [ ScoreOut, ... ] }`.
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `event_id` | string | **Yes** | The event's original `event_id` (deduplication key) |
-| `user_id` | string | **Yes** | The event's `user_id` |
-| `label` | integer | **Yes** | `1` = confirmed malicious/fraud, `0` = confirmed benign |
+Events for the same `user_id` are advanced through the feature store in
+`event_time` order internally, so history is consistent regardless of array
+order.
+
+- **413** — `{ "detail": "batch exceeds max_batch=1000" }`
+- **422** — empty `events`, or any event fails validation
+
+---
+
+### 5.6 `POST /ingest` and `POST /ingest/batch`
+
+Advance the customer's history **without** running the model. Returns **202**.
+Cheaper than `/score` (no inference, no SHAP) and safe to fire-and-forget.
+
+Body is exactly the `/score` body (`/ingest`) or `{"events":[...]}`
+(`/ingest/batch`).
+
+```json
+{ "accepted": 12, "rejected": 0 }
+```
+
+`rejected` counts events whose state could not be advanced because the store was
+unavailable. They are safe to retry — the `event_id` guard makes a duplicate a
+no-op.
+
+**Send here:** beneficiary add/activate, balance check, statement view, and any
+low-value action that should build history but needs no verdict.
+
+---
+
+### 5.7 `POST /feedback` and `POST /feedback/batch`
+
+Record the confirmed outcome of an event. Idempotent per `event_id`.
 
 ```json
 { "event_id": "txn-100493", "user_id": "cust-8841", "label": 1 }
 ```
-
-**Response — 200 (first submission):**
 ```json
 { "event_id": "txn-100493", "applied": true }
 ```
 
-**Response — 200 (duplicate `event_id`, ignored):**
+`applied: false` means the `event_id` was already recorded.
+
+Batch form takes `{"items":[ ... ]}` and returns:
+
 ```json
-{ "event_id": "txn-100493", "applied": false }
+{ "results": [ {"event_id":"fb-a","applied":true} ], "applied": 2, "duplicates": 0 }
 ```
 
-**Error responses:**
-- **401** — missing/invalid key.
-- **422** — missing field or `label` not in `{0, 1}`.
+> **Scope note.** The feature this loop feeds (`f_user_past_malicious_rate`) is
+> **not currently a model input**. Measured with realistic confirmation lag its
+> discriminative power vanishes (0.0000 on fraud vs 0.0031 on benign) — its
+> apparent value came from assuming labels arrive instantly. Keep posting
+> feedback: the counters accumulate, so the feature can be restored once real
+> `confirmedAt` timestamps are available. See `reports/ml/MODELS.md`.
 
 ---
 
-### 5.6 `GET /metrics`
+### 5.8 `GET /metrics`
 
-Prometheus exposition (text format) for scrapers. Unauthenticated.
+Prometheus exposition. Series:
 
-Exposed series include:
-- `sentinel_score_latency_seconds` — end-to-end scoring latency histogram (`endpoint` label)
-- `sentinel_scored_total` — events scored (`model`, `risk_level` labels)
-- `sentinel_degraded_total` — events scored without live feature-store state
-- `sentinel_feedback_total` — feedback events applied (`applied` label)
+| Metric | Labels | Use |
+|---|---|---|
+| `sentinel_score_latency_seconds` | `endpoint` | Latency histogram |
+| `sentinel_scored_total` | `model`, `risk_level` | Score volume + band mix |
+| `sentinel_risk_score` | `model` | Score distribution (drift) |
+| `sentinel_ingested_total` | — | Context events streamed |
+| `sentinel_degraded_total` | — | **Store unavailable** — alert on a rise |
+| `sentinel_cold_entity_total` | `entity` | New customers/devices (expected, not an incident) |
+| `sentinel_requests_total` | `client`, `endpoint` | Per-client traffic |
+| `sentinel_rate_limited_total` | `client` | Throttled clients |
+| `sentinel_store_breaker_open` | — | `1` while store calls are being skipped |
+| `sentinel_feedback_total` | `applied` | Feedback loop health |
+
+`degraded_total` and `cold_entity_total` are deliberately separate: a new
+customer is normal, an unreachable store is an incident.
 
 ---
 
 ## 6. Integration notes
 
-- **Idempotency of scoring:** scoring **advances** the actor's history, so submitting
-  the same event twice counts it twice. Submit each real event once. `/feedback` is
-  the idempotent endpoint (deduped by `event_id`).
-- **`degraded: true`:** the feature store was briefly unreachable and the event was
-  scored on event-only features. The response is still valid and finite; treat a
-  sustained rise in `degraded` as an operational alert, not a per-request failure.
-- **Latency:** model inference p50 ≤ 10 ms (CPU); add one feature-store round trip
-  (~1–3 ms in-datacentre) for the end-to-end single-event budget. `?explain=true`
-  adds tens of milliseconds and should be used for case review, not the hot path.
-- **Versioning:** the `model_version` in every response identifies the deployed model
-  build. Log it alongside decisions for auditability.
-- **Time source:** `event_time` drives temporal and recency features and the ordering
-  of an actor's history. Send accurate UTC timestamps; events more than 300 s in the
-  future are rejected (configurable) to guard against clock skew / replay.
+- **Idempotency (changed in v2).** `event_id` is now the idempotency key for
+  `/score`, `/score/batch` and `/ingest`. A retry returns the same features and
+  advances counters **exactly once**. In v1 a retry double-counted velocity and
+  corrupted every later score for that customer. **Retry freely.**
+- **Circuit breaker.** After `SENTINEL_BREAKER_FAIL_THRESHOLD` consecutive store
+  faults (default 5) the service stops calling the store for
+  `SENTINEL_BREAKER_RESET_S` (default 10s) and degrades immediately, so a dead
+  store cannot burn the timeout on every request. State is on `/ready` and in
+  `sentinel_store_breaker_open`.
+- **Latency.** Model inference p50 ≤ 2.6 ms (CPU) plus one store round trip
+  (~1–3 ms in-DC); the store call is capped at `SENTINEL_STORE_TIMEOUT_MS`
+  (default 50 ms), so a single `/score` fits comfortably in an ~800 ms client
+  budget even when degrading.
+- **Contract hash.** `/ready` reports `contract_hash`; the service refuses to
+  start when code and model artifacts disagree. Assert it in your deploy check.
+- **Time source.** `event_time` drives temporal and recency features and history
+  ordering. Events more than 300 s in the future are rejected (configurable).
 
 ---
 
-## 7. Quick reference (curl)
+## 7. Configuration (env, prefix `SENTINEL_`)
+
+| Var | Default | Meaning |
+|---|---|---|
+| `SENTINEL_MODELS_DIR` | `<repo>/models` | Trained bundle location |
+| `SENTINEL_MODEL_VERSION` | `dev` | Version echoed in responses |
+| `SENTINEL_API_KEYS` | demo key | `name:key` pairs, comma-separated |
+| `SENTINEL_REQUIRE_AUTH` | `true` | `false` only for local dev |
+| `SENTINEL_RATE_LIMIT_PER_MINUTE` | `0` | Per-client limit; 0 disables |
+| `SENTINEL_REDIS_URL` | — | e.g. `redis://redis:6379/0`; unset → in-memory |
+| `SENTINEL_STATE_TTL_SECONDS` | 90d | Per-entity retention |
+| `SENTINEL_STORE_TIMEOUT_MS` | 50 | Per-request store budget |
+| `SENTINEL_BREAKER_FAIL_THRESHOLD` | 5 | Faults before the circuit opens |
+| `SENTINEL_BREAKER_RESET_S` | 10 | Seconds before a retry probe |
+| `SENTINEL_MAX_BATCH` | 1000 | Batch size cap |
+| `SENTINEL_ENABLE_EXPLAIN` | `true` | Allow `?explain=true` |
+| `SENTINEL_REJECT_FUTURE_EVENTS_SECONDS` | 300 | Clock-skew guard |
+
+---
+
+## 8. Quick reference (curl)
 
 ```bash
-# Score
-curl -sS http://<host>:8000/score \
-  -H "X-API-Key: sentinel-demo-key-2026" -H "Content-Type: application/json" \
-  -d '{"event_id":"txn-1","event_domain":"financial","event_time":"2026-07-20T14:05:00Z","event_type":"card_txn","user_id":"cust-8841","amount":4210.55,"country":"GB"}'
+KEY="sentinel-demo-key-2026"
 
-# Score with explanation
-curl -sS "http://<host>:8000/score?explain=true" -H "X-API-Key: sentinel-demo-key-2026" \
+# Stream context (no score, 202)
+curl -sS http://localhost:8000/ingest -H "X-API-Key: $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"event_id":"ctx-1","event_domain":"financial","event_type":"balance_check",
+       "event_time":"2026-07-09T13:00:00Z","user_id":"cust-8841"}'
+
+# Score a payment
+curl -sS http://localhost:8000/score -H "X-API-Key: $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"event_id":"txn-1","event_domain":"financial","event_type":"card_txn",
+       "event_time":"2026-07-09T13:20:00Z","user_id":"cust-8841","amount":4210.55,
+       "country":"GB","counterparty_id":"bene-9","counterparty_age_s":300,
+       "name_mismatch":1,"bank_txn_count_1h":7}'
+
+# With plain-language reasons
+curl -sS "http://localhost:8000/score?explain=true" -H "X-API-Key: $KEY" \
   -H "Content-Type: application/json" -d '{ ...event... }'
 
-# Batch
-curl -sS http://<host>:8000/score/batch -H "X-API-Key: sentinel-demo-key-2026" \
-  -H "Content-Type: application/json" -d '{"events":[ {...}, {...} ]}'
-
 # Feedback
-curl -sS http://<host>:8000/feedback -H "X-API-Key: sentinel-demo-key-2026" \
+curl -sS http://localhost:8000/feedback -H "X-API-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{"event_id":"txn-1","user_id":"cust-8841","label":1}'
 
-# Health / readiness
-curl -sS http://<host>:8000/health
-curl -sS http://<host>:8000/ready
+# Ops
+curl -sS http://localhost:8000/health
+curl -sS http://localhost:8000/ready
+curl -sS http://localhost:8000/metrics
 ```
 
-An interactive OpenAPI/Swagger UI is also served at `http://<host>:8000/docs`.
+Interactive OpenAPI/Swagger UI: `http://<host>:8000/docs`.

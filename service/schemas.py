@@ -214,6 +214,8 @@ class ReadyOut(BaseModel):
     # Feature-contract fingerprint the loaded bundles were trained under. Lets a
     # deploy check confirm the running code and artifacts agree.
     contract_hash: str = "unknown"
+    # closed = healthy, degraded = recent faults, open = store calls skipped (§5.2)
+    store_breaker: str = "unknown"
 
 
 Explanation.model_rebuild()

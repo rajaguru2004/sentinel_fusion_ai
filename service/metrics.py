@@ -2,7 +2,13 @@
 other collectors and is trivial to reset in tests."""
 from __future__ import annotations
 
-from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 
 REGISTRY = CollectorRegistry()
 
@@ -13,6 +19,20 @@ SCORE_LATENCY = Histogram(
 
 SCORED_TOTAL = Counter(
     "sentinel_scored_total", "Events scored", ["model", "risk_level"],
+    registry=REGISTRY)
+
+# Per-client attribution (§5.1): a named key makes traffic, throttling and
+# revocation per-integration rather than all-or-nothing.
+REQUESTS_TOTAL = Counter(
+    "sentinel_requests_total", "Authenticated requests", ["client", "endpoint"],
+    registry=REGISTRY)
+
+RATE_LIMITED_TOTAL = Counter(
+    "sentinel_rate_limited_total", "Requests rejected by the rate limiter",
+    ["client"], registry=REGISTRY)
+
+BREAKER_STATE = Gauge(
+    "sentinel_store_breaker_open", "1 when the feature-store circuit is open",
     registry=REGISTRY)
 
 DEGRADED_TOTAL = Counter(
@@ -49,5 +69,7 @@ FEATURE_SEEN_TOTAL = Counter(
     ["model"], registry=REGISTRY)
 
 
-def render() -> bytes:
+def render(breaker_open: bool | None = None) -> bytes:
+    if breaker_open is not None:
+        BREAKER_STATE.set(1 if breaker_open else 0)
     return generate_latest(REGISTRY)

@@ -68,8 +68,10 @@ async def lifespan(app: FastAPI):
     app.state.contract_hash = CONTRACT_HASH
     app.state.explainer = Explainer(app.state.scorer.scorer, top_k=settings.explain_top_k)
     app.state.store = build_store(settings)
-    app.state.features = FeatureService(app.state.store,
-                                        timeout_ms=settings.store_timeout_ms)
+    app.state.features = FeatureService(
+        app.state.store, timeout_ms=settings.store_timeout_ms,
+        breaker_fail_threshold=settings.breaker_fail_threshold,
+        breaker_reset_s=settings.breaker_reset_s)
     try:
         yield
     finally:

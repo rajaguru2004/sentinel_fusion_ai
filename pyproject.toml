@@ -29,12 +29,13 @@ packages = ["ml", "ml.experiments", "service"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not slow and not quality and not perf' --strict-markers -q"
+addopts = "-m 'not slow and not quality and not perf and not e2e' --strict-markers -q"
 asyncio_mode = "auto"
 markers = [
     "slow: loads the full 2M-row parquet",
     "quality: needs real trained models/ + full data (model accuracy gates)",
     "perf: latency/throughput SLA checks on real artifacts",
+    "e2e: runs against a live `docker compose up` stack (API + Redis)",
 ]
 
 [tool.ruff]

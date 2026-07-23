@@ -17,6 +17,7 @@ the event in.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass, replace
 from typing import Any, Mapping, Protocol
 
@@ -47,6 +48,37 @@ class UserContext:
 
 
 Snapshot = tuple[UserState | None, UserContext, DeviceState | None]
+
+
+# Placeholder written when an event_id is first claimed, replaced by the encoded
+# snapshot once the winner has computed it.
+_PENDING = "1"
+
+
+def _encode_snapshot(snap: Snapshot) -> str:
+    ust, ctx, dst = snap
+    return json.dumps({
+        "u": None if ust is None else [ust.seq, ust.last_ts, ust.amt_n,
+                                       ust.amt_sum, ust.amt_sumsq, ust.pos],
+        "c": [ctx.seen_country, ctx.seen_counterparty, ctx.n_counterparties,
+              ctx.seen_merchant_category, ctx.txn_count_window],
+        "d": None if dst is None else [dst.seq, dst.hisev],
+    }, separators=(",", ":"))
+
+
+def _decode_snapshot(blob: str) -> Snapshot | None:
+    """Rebuild a snapshot written by a previous call; None if not one."""
+    if not blob or blob == _PENDING:
+        return None
+    try:
+        d = json.loads(blob)
+        u, c, dv = d["u"], d["c"], d["d"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    ust = None if u is None else UserState(seq=u[0], last_ts=u[1], amt_n=u[2],
+                                           amt_sum=u[3], amt_sumsq=u[4], pos=u[5])
+    dst = None if dv is None else DeviceState(seq=dv[0], hisev=dv[1])
+    return ust, UserContext(*c), dst
 
 
 def _present(v: Any) -> bool:
@@ -210,12 +242,16 @@ redis.call('EXPIRE', h, ARGV[2])
 return {o[1], o[2]}
 """
 
-# §3.2 idempotency. SET NX on the event_id: first caller wins and advances
-# state, a replay returns 0 and the caller reuses the cached snapshot. TTL-bounded
-# like the feedback ledger so the keyspace stays finite.
+# §3.2 idempotency. SET NX on the event_id: the first caller wins and advances
+# state; a replay loses the claim and reads back the snapshot the winner stored,
+# so it returns byte-identical features. TTL-bounded like the feedback ledger so
+# the keyspace stays finite.
+#
+# Returns the stored snapshot on a replay (or the "1" placeholder if the winner
+# has not finished writing it yet).
 _CLAIM_LUA = """
-if redis.call('SET', KEYS[1], ARGV[1], 'NX', 'EX', ARGV[2]) then return 1 end
-return 0
+if redis.call('SET', KEYS[1], ARGV[1], 'NX', 'EX', ARGV[2]) then return '' end
+return redis.call('GET', KEYS[1])
 """
 
 _FEEDBACK_LUA = """
@@ -300,12 +336,20 @@ class RedisFeatureStore:
         ctx = UserContext()
 
         # §3.2: claim the event_id before touching any counter. A replay loses
-        # the claim and returns without advancing, so retries cannot
-        # double-count velocity / amount moments / device history.
+        # the claim and returns the winner's stored snapshot, so retries cannot
+        # double-count velocity / amount moments / device history AND get
+        # byte-identical features back.
         if eid is not None:
-            claimed = bool(_i(await self._claim(keys=[self._evt(eid)],
-                                                args=[1, self._ttl])))
-            if not claimed:
+            prior = await self._claim(keys=[self._evt(eid)],
+                                      args=[_PENDING, self._ttl])
+            prior = prior.decode() if isinstance(prior, bytes) else prior
+            if prior:                       # lost the claim -> this is a replay
+                cached = _decode_snapshot(prior)
+                if cached is not None:
+                    return cached
+                # Winner is still mid-flight (placeholder only). Reading live
+                # state would double-count nothing but could disagree with what
+                # the winner returns, so approximate from current state.
                 return await self.peek(ev)
 
         if uid is not None:
@@ -340,10 +384,16 @@ class RedisFeatureStore:
                 args=["1" if is_high_severity(ev) else "0", self._ttl])
             dst = DeviceState(seq=_i(res[0]), hisev=_i(res[1]))
 
-        return ust, ctx, dst
+        snap = (ust, ctx, dst)
+        if eid is not None:
+            # Store what we returned so a replay is byte-identical rather than
+            # an approximation reconstructed from post-advance counters.
+            await self._r.set(self._evt(eid), _encode_snapshot(snap),
+                              ex=self._ttl)
+        return snap
 
     async def peek(self, ev: Mapping[str, Any]) -> Snapshot:
-        """Read entity state WITHOUT advancing it (idempotent replay path).
+        """Read entity state WITHOUT advancing it (approximate replay path).
 
         Returns current state rather than the exact bytes returned first time.
         For a same-instant retry these coincide; if other events for the entity
