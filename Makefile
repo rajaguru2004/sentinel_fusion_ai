@@ -1,7 +1,7 @@
 PY := .venv/bin/python
 PYTEST := .venv/bin/pytest
 
-.PHONY: test test-all gates bench bench-baseline experiments retrain serve batch fixture lint
+.PHONY: test test-all gates bench bench-baseline experiments retrain serve batch fixture lint gen-key
 
 test:            ## fast tier: unit + integration + service (<3 min, no big data)
 	$(PYTEST)
@@ -26,6 +26,9 @@ experiments:     ## bounded improvement experiments (~30 min CPU)
 
 retrain:         ## retrain all models + register new version
 	$(PY) -m ml.run_pipeline --register
+
+gen-key:         ## generate a strong 256-bit API key for SENTINEL_API_KEYS
+	@openssl rand -hex 32
 
 serve:           ## run scoring API on :8000
 	.venv/bin/uvicorn service.app:app --host 0.0.0.0 --port 8000 --workers 2

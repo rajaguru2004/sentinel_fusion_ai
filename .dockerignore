@@ -1,0 +1,24 @@
+# Keep the build context small. NOTE: models/ is intentionally NOT ignored —
+# the trained bundles are baked into the image.
+data/
+.venv/
+venv/
+ENV/
+notebooks/
+reports/
+benchmarks/
+demo/
+tests/
+docs/
+*.ipynb
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+*.pyo
+.env
+models/challengers/
+models/*.json
+models/reference_stats.json

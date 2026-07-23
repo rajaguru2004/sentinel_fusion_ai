@@ -1,0 +1,52 @@
+# Local / staging stack: scoring API + Redis feature store (+ optional Prometheus).
+# Bring up core:      docker compose up --build
+# With monitoring:    docker compose --profile monitoring up --build
+services:
+  api:
+    # Published to Docker Hub by deploy.sh. Hosts only need this file + .env:
+    #   sudo docker compose pull && sudo docker compose up -d
+    image: rajaguru2004/sentinel-fusion-ai:${SENTINEL_IMAGE_TAG:-latest}
+    build: .          # used only when building locally; pull ignores it
+    ports:
+      - "8000:8000"
+    environment:
+      SENTINEL_MODELS_DIR: /app/models
+      SENTINEL_MODEL_VERSION: ${SENTINEL_MODEL_VERSION:-dev}
+      SENTINEL_REDIS_URL: redis://redis:6379/0
+      SENTINEL_REQUIRE_AUTH: "true"
+      # Demo default; OVERRIDE in production via host env or .env (see docs/API.md §2.1).
+      SENTINEL_API_KEYS: ${SENTINEL_API_KEYS:-sentinel-demo-key-2026}
+      SENTINEL_STORE_TIMEOUT_MS: "50"
+      SENTINEL_MAX_BATCH: "1000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # AOF persistence so per-entity state survives restarts; Postgres ledger
+    # (future) allows full rebuild if the AOF is ever lost.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  redis-data:

@@ -37,12 +37,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.657,
-        "p50": 1.396,
-        "p95": 2.577
+        "mean": 1.383,
+        "p50": 1.374,
+        "p95": 1.455
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1929108
+      "batch_rows_per_sec": 1949036
     },
     "best_iteration": 175,
     "shap_top_features": {
@@ -101,28 +101,28 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.795,
-        "p50": 0.789,
-        "p95": 0.833
+        "mean": 0.776,
+        "p50": 0.771,
+        "p95": 0.803
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1943720
+      "batch_rows_per_sec": 1908902
     },
     "best_iteration": 188,
     "shap_top_features": {
-      "f_device_past_hisev_count": 4.37078,
+      "f_device_past_hisev_count": 4.36064,
       "dst_port": 2.93236,
-      "f_user_past_malicious_rate": 2.32095,
-      "duration_s": 0.77771,
-      "f_bytes_ratio": 0.61791,
-      "bytes_out": 0.49926,
-      "f_hour": 0.49036,
-      "f_log1p_bytes_in": 0.44586,
+      "f_user_past_malicious_rate": 2.32037,
+      "duration_s": 0.78413,
+      "f_bytes_ratio": 0.60653,
+      "f_hour": 0.49714,
+      "bytes_out": 0.49552,
+      "f_log1p_bytes_in": 0.4459,
       "f_user_seq_no": 0.4097,
       "f_user_secs_since_last": 0.25021,
-      "f_log1p_bytes_out": 0.2319,
-      "f_device_seq_no": 0.22501,
-      "f_dayofweek": 0.15461,
+      "f_log1p_bytes_out": 0.23251,
+      "f_device_seq_no": 0.21857,
+      "f_dayofweek": 0.14473,
       "event_subtype": 0.10945,
       "protocol": 0.10271
     }
@@ -165,12 +165,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.736,
-        "p50": 0.734,
-        "p95": 0.765
+        "mean": 0.589,
+        "p50": 0.586,
+        "p95": 0.612
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 8202597
+      "batch_rows_per_sec": 9356707
     },
     "best_iteration": 12,
     "shap_top_features": {
@@ -229,12 +229,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.557,
-        "p50": 1.385,
-        "p95": 2.541
+        "mean": 1.398,
+        "p50": 1.379,
+        "p95": 1.496
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 2090013
+      "batch_rows_per_sec": 3039892
     },
     "best_iteration": 119,
     "shap_top_features": {
