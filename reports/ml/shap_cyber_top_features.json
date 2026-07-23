@@ -2,20 +2,20 @@
   "model": "cyber",
   "sample_rows": 2000,
   "mean_abs_shap_top15": {
-    "f_device_past_hisev_count": 6.08303,
+    "f_device_past_hisev_count": 6.08336,
     "dst_port": 2.83765,
-    "duration_s": 0.87786,
-    "f_device_seq_no": 0.77352,
-    "f_bytes_ratio": 0.66987,
-    "bytes_out": 0.58897,
-    "f_hour": 0.50658,
-    "f_user_secs_since_last": 0.50445,
+    "duration_s": 0.91386,
+    "f_device_seq_no": 0.77363,
+    "f_bytes_ratio": 0.62719,
+    "bytes_out": 0.5329,
+    "f_user_secs_since_last": 0.50454,
+    "f_hour": 0.49963,
     "f_user_seq_no": 0.47672,
-    "f_log1p_bytes_in": 0.46153,
-    "f_dayofweek": 0.14696,
-    "event_subtype": 0.14545,
-    "f_log1p_bytes_out": 0.13631,
-    "protocol": 0.12046,
-    "f_hour_sin": 0.06367
+    "f_log1p_bytes_in": 0.46162,
+    "f_log1p_bytes_out": 0.15855,
+    "event_subtype": 0.14544,
+    "protocol": 0.12363,
+    "f_dayofweek": 0.10721,
+    "f_hour_sin": 0.05448
   }
 }

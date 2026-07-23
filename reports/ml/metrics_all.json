@@ -37,12 +37,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 2.573,
-        "p50": 2.55,
-        "p95": 3.109
+        "mean": 4.236,
+        "p50": 3.141,
+        "p95": 6.968
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1903951
+      "batch_rows_per_sec": 1392206
     },
     "single_feature_leak_audit": [
       {
@@ -113,12 +113,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.727,
-        "p50": 1.479,
-        "p95": 2.905
+        "mean": 1.714,
+        "p50": 1.456,
+        "p95": 1.854
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 3387087
+      "batch_rows_per_sec": 2394028
     },
     "single_feature_leak_audit": [],
     "best_iteration": 56,
@@ -178,12 +178,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.835,
-        "p50": 0.813,
-        "p95": 1.041
+        "mean": 1.202,
+        "p50": 0.855,
+        "p95": 2.265
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1609986
+      "batch_rows_per_sec": 1604476
     },
     "single_feature_leak_audit": [
       {
@@ -194,21 +194,21 @@
     ],
     "best_iteration": 208,
     "shap_top_features": {
-      "f_device_past_hisev_count": 6.08303,
+      "f_device_past_hisev_count": 6.08336,
       "dst_port": 2.83765,
-      "duration_s": 0.87786,
-      "f_device_seq_no": 0.77352,
-      "f_bytes_ratio": 0.66987,
-      "bytes_out": 0.58897,
-      "f_hour": 0.50658,
-      "f_user_secs_since_last": 0.50445,
+      "duration_s": 0.91386,
+      "f_device_seq_no": 0.77363,
+      "f_bytes_ratio": 0.62719,
+      "bytes_out": 0.5329,
+      "f_user_secs_since_last": 0.50454,
+      "f_hour": 0.49963,
       "f_user_seq_no": 0.47672,
-      "f_log1p_bytes_in": 0.46153,
-      "f_dayofweek": 0.14696,
-      "event_subtype": 0.14545,
-      "f_log1p_bytes_out": 0.13631,
-      "protocol": 0.12046,
-      "f_hour_sin": 0.06367
+      "f_log1p_bytes_in": 0.46162,
+      "f_log1p_bytes_out": 0.15855,
+      "event_subtype": 0.14544,
+      "protocol": 0.12363,
+      "f_dayofweek": 0.10721,
+      "f_hour_sin": 0.05448
     }
   },
   "behaviour": {
@@ -249,12 +249,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.75,
-        "p50": 0.723,
-        "p95": 0.889
+        "mean": 0.91,
+        "p50": 0.739,
+        "p95": 1.712
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 7072946
+      "batch_rows_per_sec": 4450794
     },
     "single_feature_leak_audit": [],
     "best_iteration": 21,
@@ -312,12 +312,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.857,
-        "p50": 1.406,
-        "p95": 1.676
+        "mean": 1.439,
+        "p50": 1.388,
+        "p95": 1.567
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 2413369
+      "batch_rows_per_sec": 2420403
     },
     "single_feature_leak_audit": [],
     "best_iteration": 119,
