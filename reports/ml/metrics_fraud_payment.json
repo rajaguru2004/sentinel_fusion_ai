@@ -36,12 +36,12 @@
   },
   "latency": {
     "single_row_ms": {
-      "mean": 4.236,
-      "p50": 3.141,
-      "p95": 6.968
+      "mean": 2.571,
+      "p50": 2.5,
+      "p95": 2.747
     },
     "batch_rows": 10000,
-    "batch_rows_per_sec": 1392206
+    "batch_rows_per_sec": 1823224
   },
   "single_feature_leak_audit": [
     {
