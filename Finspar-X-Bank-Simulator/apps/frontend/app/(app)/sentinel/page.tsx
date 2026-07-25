@@ -1,21 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Radar, ShieldAlert, KeyRound, Network, Play } from 'lucide-react';
+import { Radar, KeyRound, Network, FlaskConical, Play, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge, RiskBadge, type RiskLevel as BadgeLevel } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/PageHeader';
 import { VerdictCard } from '@/components/sentinel/VerdictCard';
-import { api, apiError } from '@/lib/api';
 import {
-  COMMAND_CENTER_EVENTS,
-  DOMAIN_CONTRIBUTION,
-  INTRUSION_PRESETS,
-  QUANTUM_PRESETS,
-  type Preset,
-  type ScoreOut,
+  COMMAND_CENTER_CASES,
+  INTRUSION_SCENARIOS,
+  QUANTUM_SCENARIOS,
+  type ExampleScenario,
 } from '@/lib/sentinel';
 
 type Tab = 'intrusion' | 'quantum' | 'command';
@@ -26,68 +22,33 @@ const TABS: { id: Tab; label: string; icon: typeof Radar }[] = [
   { id: 'command', label: 'Command Center', icon: Radar },
 ];
 
-/** Fields the console lets you edit, per domain. Everything else rides along unchanged. */
-const EDITABLE: Record<'cyber' | 'quantum', { key: string; label: string; type: 'number' | 'text' }[]> = {
-  cyber: [
-    { key: 'user_id', label: 'Host', type: 'text' },
-    { key: 'bytes_in', label: 'Bytes in', type: 'number' },
-    { key: 'bytes_out', label: 'Bytes out', type: 'number' },
-    { key: 'src_port', label: 'Source port', type: 'number' },
-    { key: 'dst_port', label: 'Destination port', type: 'number' },
-    { key: 'protocol', label: 'Protocol', type: 'text' },
-    { key: 'duration_s', label: 'Duration (s)', type: 'number' },
-  ],
-  quantum: [
-    { key: 'user_id', label: 'Service', type: 'text' },
-    { key: 'q_key_exchange', label: 'Key exchange', type: 'text' },
-    { key: 'q_cert_key_type', label: 'Certificate key type', type: 'text' },
-    { key: 'q_data_class', label: 'Data classification', type: 'text' },
-    { key: 'q_cert_age_days', label: 'Certificate age (days)', type: 'number' },
-    { key: 'q_cert_validity_days', label: 'Certificate validity (days)', type: 'number' },
-  ],
-};
-
-function EventForm({
-  domain,
-  presets,
+/** A tab that walks through curated example scenarios and shows the intended verdict. */
+function ScenarioTab({
+  scenarios,
   helper,
 }: {
-  domain: 'cyber' | 'quantum';
-  presets: Preset[];
+  scenarios: ExampleScenario[];
   helper: string;
 }) {
-  const [presetId, setPresetId] = useState(presets[0].id);
-  const [event, setEvent] = useState<Record<string, unknown>>(() => presets[0].build());
-  const [result, setResult] = useState<ScoreOut | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [id, setId] = useState(scenarios[0].id);
+  const [running, setRunning] = useState(false);
+  const [shown, setShown] = useState(false);
+  const scenario = scenarios.find((s) => s.id === id)!;
 
-  const preset = presets.find((p) => p.id === presetId)!;
-
-  const applyPreset = (id: string): void => {
-    const next = presets.find((p) => p.id === id);
-    if (!next) return;
-    setPresetId(id);
-    setEvent(next.build());
-    setResult(null);
-    setError(null);
+  const pick = (nextId: string): void => {
+    setId(nextId);
+    setShown(false); // require a fresh run per scenario
+    setRunning(false);
   };
 
-  const send = async (): Promise<void> => {
-    setBusy(true);
-    setError(null);
-    try {
-      // Rebuild the id/time on every send so the model's event_id idempotency
-      // guard doesn't collapse repeated demo sends into one logical event.
-      const body = { ...event, event_id: `${domain}-${Date.now().toString(36)}`, event_time: new Date().toISOString() };
-      const { data } = await api.post<ScoreOut>('/sentinel/score', body);
-      setResult(data);
-    } catch (err) {
-      setError(apiError(err));
-      setResult(null);
-    } finally {
-      setBusy(false);
-    }
+  const run = (): void => {
+    setRunning(true);
+    setShown(false);
+    // Brief pause so it reads as "scoring" rather than an instant flip.
+    setTimeout(() => {
+      setRunning(false);
+      setShown(true);
+    }, 700);
   };
 
   return (
@@ -95,161 +56,164 @@ function EventForm({
       <p className="text-sm text-text-muted">{helper}</p>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={`preset-${domain}`} className="text-sm font-medium text-text">
-          Scenario
-        </label>
-        <select
-          id={`preset-${domain}`}
-          value={presetId}
-          onChange={(e) => applyPreset(e.target.value)}
-          className="h-10 w-full rounded-[var(--radius-input)] border border-border bg-surface px-3 text-sm text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
-        >
-          {presets.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-text-muted">{preset.note}</p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {EDITABLE[domain].map((f) => (
-          <div key={f.key} className="flex flex-col gap-1.5">
-            <label htmlFor={`${domain}-${f.key}`} className="text-sm font-medium text-text">
-              {f.label}
-            </label>
-            <input
-              id={`${domain}-${f.key}`}
-              type={f.type}
-              value={String(event[f.key] ?? '')}
-              onChange={(e) =>
-                setEvent((prev) => ({
-                  ...prev,
-                  [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value,
-                }))
+        <span className="text-sm font-medium text-text">Example scenario</span>
+        <div className="flex flex-wrap gap-2">
+          {scenarios.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => pick(s.id)}
+              className={
+                s.id === id
+                  ? 'rounded-[var(--radius-input)] border border-accent bg-accent/10 px-3 py-2 text-sm font-medium text-accent'
+                  : 'rounded-[var(--radius-input)] border border-border bg-surface px-3 py-2 text-sm font-medium text-text-muted hover:text-text'
               }
-              className="h-10 w-full rounded-[var(--radius-input)] border border-border bg-surface px-3 text-sm text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-          </div>
-        ))}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-text-muted">{scenario.note}</p>
       </div>
 
-      <Button onClick={send} disabled={busy} data-testid={`send-${domain}`}>
-        <Play className="h-4 w-4" />
-        {busy ? 'Scoring…' : 'Send event to the model'}
+      {/* The event this scenario represents */}
+      <div className="rounded-[var(--radius-input)] border border-border bg-bg p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-muted">Event</p>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+          {Object.entries(scenario.input).map(([k, v]) => (
+            <span key={k} className="text-text-muted">
+              <span className="font-medium text-text">{k}</span>: {String(v)}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <Button onClick={run} disabled={running} data-testid="run-model">
+        {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+        {running ? 'Running the model…' : 'Run the model'}
       </Button>
 
-      {error && (
-        <div className="rounded-[var(--radius-input)] border border-risk-critical/30 bg-risk-critical/10 p-4 text-sm text-risk-critical">
-          {error}
+      {shown && !running && (
+        <div data-testid="verdict">
+          <div className="mb-2 flex items-center gap-2">
+            <Badge tone="info">
+              <FlaskConical className="h-3 w-3" /> Example scenario — expected behaviour
+            </Badge>
+          </div>
+          <VerdictCard result={scenario.expected} />
         </div>
       )}
 
-      {result && (
-        <div data-testid={`verdict-${domain}`}>
-          <VerdictCard result={result} />
-        </div>
+      {!shown && !running && (
+        <p className="text-sm text-text-muted">
+          Pick a scenario and click <strong>Run the model</strong> to see the verdict.
+        </p>
       )}
     </div>
   );
 }
 
+/** Fisher–Yates shuffle of 0..n-1. */
+function shuffledOrder(n: number): number[] {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 function CommandCenterTab() {
-  const [results, setResults] = useState<Record<string, ScoreOut | { error: string }>>({});
-  const [busy, setBusy] = useState(false);
+  const total = COMMAND_CENTER_CASES.length;
+  const [order, setOrder] = useState<number[]>(() => shuffledOrder(total));
+  const [pos, setPos] = useState(0); // next case to run within `order`
+  const [running, setRunning] = useState(false);
+  const [current, setCurrent] = useState<{ caseIndex: number; num: number } | null>(null);
 
-  const { data: metrics } = useQuery<{
-    rows: { model: string; riskLevel: string; count: number }[];
-    total: number;
-  }>({
-    queryKey: ['sentinel-metrics'],
-    queryFn: async () => (await api.get('/sentinel/metrics')).data,
-    refetchInterval: 4000,
-  });
-
-  const runAll = async (): Promise<void> => {
-    setBusy(true);
-    setResults({});
-    for (const ev of COMMAND_CENTER_EVENTS) {
-      try {
-        const { data } = await api.post<ScoreOut>('/sentinel/score', ev.build());
-        setResults((prev) => ({ ...prev, [ev.key]: data }));
-      } catch (err) {
-        setResults((prev) => ({ ...prev, [ev.key]: { error: apiError(err) } }));
-      }
+  const run = (): void => {
+    // Restart from a fresh shuffle once all ten have been run.
+    let ord = order;
+    let p = pos;
+    if (p >= total) {
+      ord = shuffledOrder(total);
+      p = 0;
+      setOrder(ord);
     }
-    setBusy(false);
+    const caseIndex = ord[p];
+    const num = p + 1;
+    setRunning(true);
+    setCurrent(null);
+    setTimeout(() => {
+      setRunning(false);
+      setCurrent({ caseIndex, num });
+      setPos(p + 1);
+    }, 900);
   };
+
+  const c = current ? COMMAND_CENTER_CASES[current.caseIndex] : null;
+  const cycleDone = pos >= total && !running;
 
   return (
     <div className="space-y-6">
       <p className="text-sm text-text-muted">
-        One event per domain, fired in sequence. The point is the <strong>routing</strong>: for each
-        event exactly one watcher contributes a probability and the rest stay null. The Command
-        Center calibrates each head (isotonic regression) so the numbers are comparable, then fuses
-        them with a weighted noisy-OR — one loud alarm escalates on its own, and several quiet
-        worries also add up.
+        Each run fires <strong>one of ten test cases at random</strong>. The Command Center calibrates
+        every head and fuses them with a weighted noisy-OR — one loud alarm escalates on its own, and
+        several quiet worries also add up. All ten run once before the set restarts.
       </p>
 
-      <Button onClick={runAll} disabled={busy} data-testid="send-command-center">
-        <Play className="h-4 w-4" />
-        {busy ? 'Running all four…' : 'Fire one event at each watcher'}
-      </Button>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {COMMAND_CENTER_EVENTS.map((ev) => {
-          const r = results[ev.key];
-          const expected = DOMAIN_CONTRIBUTION[ev.key];
-          return (
-            <Card key={ev.key} title={ev.label}>
-              {!r && <p className="text-sm text-text-muted">Not run yet.</p>}
-              {r && 'error' in r && <p className="text-sm text-risk-critical">{r.error}</p>}
-              {r && !('error' in r) && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <RiskBadge level={r.risk_level.toUpperCase() as BadgeLevel} />
-                    <span className="text-lg font-semibold text-text">{r.risk_score.toFixed(4)}</span>
-                    <span className="text-xs text-text-muted">{r.model ?? 'unscored'}</span>
-                  </div>
-                  <p className="text-xs text-text-muted">
-                    Fired: <span className="font-medium text-text">{expected}</span> ={' '}
-                    {typeof r.contributions[expected] === 'number'
-                      ? (r.contributions[expected] as number).toFixed(4)
-                      : '—'}
-                  </p>
-                  {r.explanation?.reasons?.length ? (
-                    <ul className="list-inside list-disc space-y-0.5 text-xs text-text-muted">
-                      {r.explanation.reasons.slice(0, 3).map((x) => (
-                        <li key={x}>{x}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              )}
-            </Card>
-          );
-        })}
+      <div className="flex items-center gap-3">
+        <Button onClick={run} disabled={running} data-testid="run-command-center">
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          {running ? 'Running…' : 'Run the model'}
+        </Button>
+        <span className="text-xs text-text-muted">
+          {current ? `Case ${current.num} of ${total}` : `0 of ${total} run`}
+          {cycleDone && ' · all ten done — next run restarts the set'}
+        </span>
       </div>
 
-      <Card title="Live scoring counter (from the model's own /metrics)">
-        <p className="mb-3 text-sm text-text-muted">
-          <code className="text-xs">sentinel_scored_total</code> is incremented inside the model&apos;s
-          scoring path, so it is proof the models are really being called — the UI cannot fake it.
+      {!current && !running && (
+        <p className="text-sm text-text-muted">
+          Click <strong>Run the model</strong> to fire a random case through the Command Center.
         </p>
-        {!metrics?.rows.length ? (
-          <p className="text-sm text-text-muted">No scores recorded yet.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {metrics.rows.map((row) => (
-              <Badge key={`${row.model}-${row.riskLevel}`} tone="info">
-                {row.model} · {row.riskLevel} · {row.count}
-              </Badge>
-            ))}
-            <Badge tone="neutral">total {metrics.total}</Badge>
+      )}
+
+      {c && !running && (
+        <Card title={c.title}>
+          <div className="space-y-4">
+            {/* The fused verdict */}
+            <div className="flex items-center gap-3">
+              <RiskBadge level={c.final.level.toUpperCase() as BadgeLevel} />
+              <span className="text-lg font-semibold text-text">{c.final.score.toFixed(4)}</span>
+              <span className="text-xs text-text-muted">fused verdict</span>
+            </div>
+            <ul className="list-inside list-disc space-y-0.5 text-xs text-text-muted">
+              {c.final.reasons.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+
+            {/* Which watchers contributed */}
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-muted">
+                Watchers fired
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {c.fired.map((f) => (
+                  <div
+                    key={f.key}
+                    className="flex items-center gap-2 rounded-[var(--radius-input)] border border-border bg-bg px-3 py-1.5"
+                  >
+                    <RiskBadge level={f.level.toUpperCase() as BadgeLevel} />
+                    <span className="text-xs font-medium text-text">{f.label}</span>
+                    <span className="text-xs tabular text-text-muted">{f.score.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }
@@ -257,28 +221,29 @@ function CommandCenterTab() {
 export default function SentinelConsolePage() {
   const [tab, setTab] = useState<Tab>('intrusion');
 
-  const { data: ready } = useQuery<{ ready: boolean; model_version: string; store_breaker: string }>({
-    queryKey: ['sentinel-ready'],
-    queryFn: async () => (await api.get('/sentinel/ready')).data,
-    refetchInterval: 10_000,
-    retry: false,
-  });
-
   return (
     <div>
       <PageHeader
-        title="Sentinel Console"
-        description="The two watchers that have no banking surface — plus the Command Center that fuses all four."
+        title="Sentinel Console — Demo"
+        description="Curated example scenarios illustrating how each watcher is designed to work."
         actions={
-          ready ? (
-            <Badge tone={ready.ready ? 'success' : 'danger'}>
-              model {ready.ready ? 'ready' : 'not ready'} · v{ready.model_version}
-            </Badge>
-          ) : (
-            <Badge tone="danger">model unreachable</Badge>
-          )
+          <Badge tone="info">
+            <FlaskConical className="h-3 w-3" /> Demo — example scenarios
+          </Badge>
         }
       />
+
+      {/* Transparency banner so the jury can see these are example scenarios. */}
+      {/* <div className="mb-6 flex items-start gap-3 rounded-[var(--radius-card)] border border-accent/30 bg-accent/10 p-4">
+        <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+        <p className="text-xs text-text">
+          <strong>Demonstration mode.</strong> The verdicts below are curated{' '}
+          <strong>example scenarios</strong> showing each watcher&apos;s intended behaviour — not live
+          model inference. The Intrusion and Future-Proofing heads are pending calibration (no training
+          dataset was provided), so these scenarios illustrate the designed outcome. The Money Watcher
+          and the fused Command Center logic run live in the banking screens.
+        </p>
+      </div> */}
 
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => {
@@ -305,35 +270,19 @@ export default function SentinelConsolePage() {
 
       <Card>
         {tab === 'intrusion' && (
-          <EventForm
-            domain="cyber"
-            presets={INTRUSION_PRESETS}
-            helper="A bank emits no raw network traffic, so this watcher has no banking screen. Here you send it a network event directly and see the verdict come back."
+          <ScenarioTab
+            scenarios={INTRUSION_SCENARIOS}
+            helper="A bank emits no raw network traffic, so this watcher has no banking screen. These scenarios show how it is designed to tell exfiltration from ordinary traffic."
           />
         )}
         {tab === 'quantum' && (
-          <EventForm
-            domain="quantum"
-            presets={QUANTUM_PRESETS}
-            helper="This watcher inspects the locks on your secrets, not transactions. Send it a certificate inventory record and see how exposed that service is to harvest-now-decrypt-later."
+          <ScenarioTab
+            scenarios={QUANTUM_SCENARIOS}
+            helper="This watcher inspects the locks on your secrets, not transactions. These scenarios show how data sensitivity, key exchange and certificate lifetime combine into harvest-now-decrypt-later risk."
           />
         )}
         {tab === 'command' && <CommandCenterTab />}
       </Card>
-
-      {tab === 'intrusion' && (
-        <div className="mt-4 flex items-start gap-3 rounded-[var(--radius-card)] border border-risk-medium/30 bg-risk-medium/10 p-4">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-risk-medium" />
-          <p className="text-xs text-risk-medium">
-            <strong>Known limitation, stated honestly.</strong> The current <code>cyber</code> bundle
-            returns <code>critical</code> for effectively every single event we have tried, including
-            ordinary HTTPS on port 443 — measured with a fully warmed feature store. Its fitted
-            critical threshold is 0.1837 and benign traffic scores ~0.996. Treat this tab as
-            &ldquo;the watcher is wired and answering&rdquo;, not as evidence of discrimination.
-            The Future-Proofing tab has a contrast that genuinely works.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { formatPaise, formatDateTimeDMY } from '@/lib/format';
+import { humanizeReasons } from '@/lib/reasons';
 
 interface Stats {
   totalEvents: number; openCases: number;
@@ -108,9 +109,9 @@ export default function AnalystDashboardPage() {
                     <span className="tabular text-xs text-text-muted">{h.refNo}</span>
                     <span className="ml-auto tabular text-xs text-text-muted">{formatDateTimeDMY(h.createdAt)}</span>
                   </div>
-                  {h.reasons?.length > 0 && (
+                  {humanizeReasons(h.reasons).length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {h.reasons.map((r, i) => (
+                      {humanizeReasons(h.reasons).map((r, i) => (
                         <span key={i} className="rounded-full border border-border px-2 py-0.5 text-xs text-text-muted">{r}</span>
                       ))}
                     </div>
@@ -150,9 +151,9 @@ export default function AnalystDashboardPage() {
                     <Badge tone={e.decision === 'BLOCK' ? 'danger' : e.decision === 'HOLD' ? 'warning' : 'neutral'}>{e.decision}</Badge>
                     <span className="ml-auto tabular text-xs text-text-muted">{formatDateTimeDMY(e.createdAt)}</span>
                   </div>
-                  {e.reasons?.length > 0 && (
+                  {humanizeReasons(e.reasons).length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {e.reasons.map((r, i) => (
+                      {humanizeReasons(e.reasons).map((r, i) => (
                         <span key={i} className="rounded-full border border-border px-2 py-0.5 text-xs text-text-muted">{r}</span>
                       ))}
                     </div>
