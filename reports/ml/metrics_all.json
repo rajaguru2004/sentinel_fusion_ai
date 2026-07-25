@@ -37,12 +37,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 2.571,
-        "p50": 2.5,
-        "p95": 2.747
+        "mean": 2.926,
+        "p50": 2.65,
+        "p95": 3.692
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1823224
+      "batch_rows_per_sec": 1474183
     },
     "single_feature_leak_audit": [
       {
@@ -113,12 +113,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.47,
-        "p50": 1.447,
-        "p95": 1.556
+        "mean": 1.846,
+        "p50": 1.746,
+        "p95": 2.54
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 3565284
+      "batch_rows_per_sec": 1395753
     },
     "single_feature_leak_audit": [],
     "best_iteration": 56,
@@ -178,12 +178,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.801,
-        "p50": 0.792,
-        "p95": 0.837
+        "mean": 0.896,
+        "p50": 0.812,
+        "p95": 1.2
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1776870
+      "batch_rows_per_sec": 806075
     },
     "single_feature_leak_audit": [
       {
@@ -196,19 +196,19 @@
     "shap_top_features": {
       "f_device_past_hisev_count": 6.08303,
       "dst_port": 2.83765,
-      "duration_s": 0.89698,
-      "f_device_seq_no": 0.77352,
+      "duration_s": 0.89689,
+      "f_device_seq_no": 0.77363,
       "f_bytes_ratio": 0.66958,
-      "bytes_out": 0.56902,
-      "f_hour": 0.50559,
-      "f_user_secs_since_last": 0.50445,
-      "f_user_seq_no": 0.47249,
-      "f_log1p_bytes_in": 0.46167,
-      "f_dayofweek": 0.14708,
+      "bytes_out": 0.56924,
+      "f_user_secs_since_last": 0.50454,
+      "f_hour": 0.50447,
+      "f_user_seq_no": 0.47672,
+      "f_log1p_bytes_in": 0.46161,
+      "f_dayofweek": 0.14696,
       "event_subtype": 0.14545,
       "f_log1p_bytes_out": 0.1363,
       "protocol": 0.12046,
-      "f_hour_cos": 0.0604
+      "f_hour_cos": 0.06107
     }
   },
   "behaviour": {
@@ -249,12 +249,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.738,
-        "p50": 0.722,
-        "p95": 0.806
+        "mean": 1.459,
+        "p50": 1.098,
+        "p95": 3.635
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 7084576
+      "batch_rows_per_sec": 4682331
     },
     "single_feature_leak_audit": [],
     "best_iteration": 21,
@@ -312,12 +312,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.831,
-        "p50": 1.409,
-        "p95": 1.655
+        "mean": 2.793,
+        "p50": 1.483,
+        "p95": 4.248
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 2834413
+      "batch_rows_per_sec": 2678395
     },
     "single_feature_leak_audit": [],
     "best_iteration": 119,
