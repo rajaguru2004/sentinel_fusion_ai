@@ -32,5 +32,10 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "ioredis": "^5.11.1"
   }
 }

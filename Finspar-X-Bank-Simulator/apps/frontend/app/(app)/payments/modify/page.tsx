@@ -14,6 +14,7 @@ import { RiskMeter } from '@/components/RiskMeter';
 import { Table, THead, TBody, TR, TH, TD, EmptyState } from '@/components/ui/Table';
 import { PageHeader } from '@/components/PageHeader';
 import { api, apiError } from '@/lib/api';
+import { useSingleFlight } from '@/lib/use-single-flight';
 import { formatPaise, formatDateDMY, paiseToRupees } from '@/lib/format';
 
 interface PaymentRow {
@@ -73,7 +74,9 @@ export default function ModifyPaymentsPage() {
     enabled: applied,
   });
 
-  const del = async (): Promise<void> => {
+  // Single-flight: the ref guard is synchronous, so a double-click cannot get a
+  // second request away before `disabled` renders (see lib/use-single-flight.ts).
+  const { run: del, pending: deleting } = useSingleFlight(async () => {
     if (!toDelete) return;
     try {
       await api.delete(`/payments/${toDelete.id}`);
@@ -81,7 +84,7 @@ export default function ModifyPaymentsPage() {
       setToDelete(null);
       qc.invalidateQueries({ queryKey: ['payments'] });
     } catch (e) { toast.error(apiError(e)); }
-  };
+  });
 
   const openEdit = (p: PaymentRow): void => {
     setToEdit(p);
@@ -136,6 +139,7 @@ export default function ModifyPaymentsPage() {
     if (!toSend || !confirmRes?.otpRequestId) return;
     if (!txnPassword) return void toast.error('Enter your transaction password');
     if (!otp) return void toast.error('Enter the OTP');
+    if (sendBusy) return; // guard the double-click on the money path
     setSendBusy(true);
     try {
       const { data } = await api.post(`/payments/${toSend.id}/submit`, {
@@ -144,7 +148,9 @@ export default function ModifyPaymentsPage() {
         code: otp,
       });
       setSendDone(data);
-      toast.success('Payment submitted');
+      // A replayed submit is absorbed server-side by the ledger idempotency key
+      // rather than posting twice — report that honestly.
+      toast.success(data.alreadyPosted ? 'This payment had already been submitted.' : 'Payment submitted');
       qc.invalidateQueries({ queryKey: ['payments'] });
     } catch (e) { toast.error(apiError(e)); }
     finally { setSendBusy(false); }
@@ -281,7 +287,7 @@ export default function ModifyPaymentsPage() {
       </Modal>
 
       <Modal open={!!toDelete} onClose={() => setToDelete(null)} title="Delete payment?"
-        footer={<><Button variant="ghost" onClick={() => setToDelete(null)}>Cancel</Button><Button variant="danger" onClick={del}>Delete</Button></>}>
+        footer={<><Button variant="ghost" onClick={() => setToDelete(null)}>Cancel</Button><Button variant="danger" onClick={() => void del()} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button></>}>
         <p className="text-sm text-text-muted">Soft-delete {toDelete?.refNo}? The record is retained for audit.</p>
       </Modal>
     </div>

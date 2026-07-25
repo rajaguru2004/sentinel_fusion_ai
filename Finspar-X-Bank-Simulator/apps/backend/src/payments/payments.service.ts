@@ -3,7 +3,7 @@ import { OtpPurpose, PaymentStatus, Rail, RiskLevel, TransferMode } from '@prism
 import { PrismaService } from '../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
 import { FraudGateway } from '../fraud/fraud-gateway.service';
-import { LedgerService } from '../ledger/ledger.service';
+import { LedgerService, type PostResult } from '../ledger/ledger.service';
 import { AuthService } from '../auth/auth.service';
 import { amountInWords } from './amount-in-words';
 import type { InitiatePaymentDto, SubmitPaymentDto, UpdatePaymentDto } from './dto/payment.dto';
@@ -222,10 +222,30 @@ export class PaymentsService {
       return { outcome: 'HELD_CUTOFF' as const, refNo: payment.refNo, reason: overLimit ? 'Over per-transaction limit' : 'After cut-off time' };
     }
 
+    // Mark in-flight, then post. If the post throws, nothing committed in the
+    // ledger ($transaction rolled back), so restoring the previous status is
+    // safe — and necessary, or the payment strands in PROCESSING where it is
+    // neither editable nor submittable. A retry is protected from
+    // double-posting by the (paymentId, direction) ledger idempotency key.
+    const priorStatus = payment.status;
     await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.PROCESSING } });
-    await this.ledger.postPayment(payment.id);
+    let result: PostResult;
+    try {
+      result = await this.ledger.postPayment(payment.id);
+    } catch (e) {
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { status: priorStatus } });
+      throw e;
+    }
     const posted = await this.prisma.payment.findUnique({ where: { id: payment.id } });
-    return { outcome: 'COMPLETED' as const, refNo: posted!.refNo, status: posted!.status, riskLevel: posted!.riskLevel };
+    return {
+      outcome: 'COMPLETED' as const,
+      refNo: posted!.refNo,
+      status: posted!.status,
+      riskLevel: posted!.riskLevel,
+      // True when this submit was a replay (double-click, retried request) that
+      // the idempotency key absorbed rather than posting a second time.
+      alreadyPosted: result === 'ALREADY_POSTED',
+    };
   }
 
   private isPastCutoff(): boolean {

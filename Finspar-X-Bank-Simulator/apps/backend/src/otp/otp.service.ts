@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { randomInt } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { OtpPurpose } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -120,14 +120,26 @@ export class OtpService {
     return { requestId, expiresAt };
   }
 
-  // Mock OTP: a fixed 6-digit code so the flow can be demoed without real email
-  // delivery. Still bcrypt-hashed and stored, so verify/expiry/attempt logic is
-  // unchanged — only the value is deterministic.
+  /**
+   * DEMO MODE (env.otpDemoMode): a fixed 6-digit code, so the flow can be shown
+   * without real email delivery. Still bcrypt-hashed and stored, so verify /
+   * expiry / attempt logic is unchanged — only the value is predictable.
+   *
+   * Otherwise: crypto-random. `randomInt` is rejection-sampled and therefore
+   * uniform over the range, unlike `Math.random() * 900000`.
+   */
   private generateCode(): string {
-    return '123456';
+    if (env.otpDemoMode) return '123456';
+    return String(randomInt(0, 1_000_000)).padStart(6, '0');
   }
 
+  /**
+   * DEMO MODE: a short 4–5 digit id, so it can be read off a slide and typed.
+   * Otherwise a 128-bit random token — the requestId is a capability handle for
+   * a live challenge and must not be guessable or enumerable.
+   */
   private async uniqueRequestId(): Promise<string> {
+    if (!env.otpDemoMode) return randomBytes(16).toString('hex');
     for (let i = 0; i < 10; i++) {
       const id = String(randomInt(1000, 100000)); // 4–5 digit
       const exists = await this.prisma.otpChallenge.findUnique({ where: { requestId: id } });

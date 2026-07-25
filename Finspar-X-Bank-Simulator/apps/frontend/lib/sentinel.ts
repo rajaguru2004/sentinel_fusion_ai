@@ -63,6 +63,47 @@ export const BAND_EDGES: Record<string, { medium: number; high: number; critical
   quantum: { medium: 0.25, high: 0.5, critical: 0.75 },
 };
 
+/**
+ * Fusion weights the Risk Fusion Engine actually applies, mirrored from
+ * `ml/config.py:FUSION_WEIGHTS`. Shown in the UI so the fused score reads as
+ * arithmetic rather than an oracle. Refresh if the weights are retuned.
+ *
+ * `p_fraud` is the deprecated mirror of `p_fraud_payment` and carries no weight
+ * of its own — it is excluded from the fusion display for the same reason the
+ * contribution bars drop it.
+ */
+export const FUSION_WEIGHTS: Partial<Record<keyof Contributions, number>> = {
+  p_fraud_payment: 1.0,
+  p_fraud_application: 1.0,
+  p_cyber: 1.0,
+  p_behaviour: 0.7,
+  p_quantum: 0.9,
+};
+
+/**
+ * Weighted noisy-OR: `risk = 1 − Π(1 − wᵢ·pᵢ)`.
+ *
+ * Union-of-threats semantics — any one confident watcher dominates, and
+ * independent weak signals accumulate rather than averaging each other away.
+ * Mirrors `ml/fusion.py`. Returns the per-term detail so the UI can show the
+ * product being built up term by term.
+ */
+export function fuseNoisyOr(contributions: Contributions): {
+  terms: { key: keyof Contributions; p: number; weight: number; contribution: number }[];
+  risk: number;
+} {
+  const terms: { key: keyof Contributions; p: number; weight: number; contribution: number }[] = [];
+  let product = 1;
+  for (const [key, weight] of Object.entries(FUSION_WEIGHTS) as [keyof Contributions, number][]) {
+    const p = contributions[key];
+    if (typeof p !== 'number') continue; // watcher did not fire — skipped, not zeroed
+    const contribution = weight * p;
+    product *= 1 - contribution;
+    terms.push({ key, p, weight, contribution });
+  }
+  return { terms, risk: terms.length ? 1 - product : 0 };
+}
+
 export const CONTRIBUTION_LABELS: Record<keyof Contributions, string> = {
   p_fraud: 'Fraud (deprecated mirror)',
   p_fraud_payment: 'Money Watcher — payments',

@@ -13,6 +13,7 @@ import { Stepper } from '@/components/ui/Stepper';
 import { RiskMeter } from '@/components/RiskMeter';
 import { PageHeader } from '@/components/PageHeader';
 import { api, apiError } from '@/lib/api';
+import { useSingleFlight } from '@/lib/use-single-flight';
 import { formatPaise, formatINR } from '@/lib/format';
 import type { AccountBalance, BeneficiaryRow } from '@/lib/types';
 
@@ -46,7 +47,6 @@ export default function InitiatePaymentsPage() {
   const [remarks, setRemarks] = useState('');
   const [txnPassword, setTxnPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [busy, setBusy] = useState(false);
 
   const { data: accounts } = useQuery<AccountBalance[]>({
     queryKey: ['balances', 'DEPOSIT'],
@@ -66,39 +66,43 @@ export default function InitiatePaymentsPage() {
     setCustRef(''); setAmount(''); setBeneficiaryId(''); setRemarks(''); setTxnPassword(''); setOtp('');
   };
 
-  const initiate = async (): Promise<void> => {
+  // Every money-path action below is wrapped in useSingleFlight: the ref guard is
+  // synchronous, so a double-click cannot get two requests away before the
+  // disabled state renders. This is the client half of the "same intent applied
+  // twice" fix — the ledger idempotency key is the server half.
+  const { run: initiate, pending: initiating } = useSingleFlight(async () => {
     if (!custRef || !amount || !debitAccountId || !beneficiaryId) return void toast.error('Fill all required fields');
-    setBusy(true);
     try {
       const { data } = await api.post('/payments', {
         custRefNo: custRef, amount: Number(amount), debitAccountId, beneficiaryId, rail, remarks,
       });
       setDraft(data);
       setStep(1);
-    } catch (e) { toast.error(apiError(e)); } finally { setBusy(false); }
-  };
+    } catch (e) { toast.error(apiError(e)); }
+  });
 
-  const confirm = async (): Promise<void> => {
-    setBusy(true);
+  const { run: confirm, pending: confirming } = useSingleFlight(async () => {
     try {
       const { data } = await api.post<ConfirmResult>(`/payments/${draft.id}/confirm`, {});
       setConfirmRes(data);
       if (data.outcome === 'OTP' || data.outcome === 'CHALLENGE') setOtpOpen(true);
       else { setFinalRes(data); setStep(2); } // HELD / BLOCKED
-    } catch (e) { toast.error(apiError(e)); } finally { setBusy(false); }
-  };
+    } catch (e) { toast.error(apiError(e)); }
+  });
 
-  const submit = async (): Promise<void> => {
-    setBusy(true);
+  const { run: submit, pending: submitting } = useSingleFlight(async () => {
     try {
       const { data } = await api.post(`/payments/${draft.id}/submit`, {
         txnPassword, otpRequestId: confirmRes!.otpRequestId, code: otp,
       });
+      // The backend absorbs a replayed submit rather than posting twice; say so
+      // instead of reporting a second success for a payment that already went.
+      if (data.alreadyPosted) toast.info('This payment had already been submitted.');
       setFinalRes({ ...data, ...confirmRes });
       setOtpOpen(false);
       setStep(2);
-    } catch (e) { toast.error(apiError(e)); } finally { setBusy(false); }
-  };
+    } catch (e) { toast.error(apiError(e)); }
+  });
 
   const resend = async (): Promise<void> => {
     try {
@@ -168,7 +172,7 @@ export default function InitiatePaymentsPage() {
           </Card>
 
           <div className="flex gap-2">
-            <Button onClick={initiate} disabled={busy}>Next</Button>
+            <Button onClick={() => void initiate()} disabled={initiating}>Next</Button>
             <Button variant="ghost" onClick={reset}>Cancel</Button>
           </div>
         </div>
@@ -199,7 +203,7 @@ export default function InitiatePaymentsPage() {
           </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setStep(0)}>Back</Button>
-            <Button onClick={confirm} disabled={busy}>Confirm</Button>
+            <Button onClick={() => void confirm()} disabled={confirming}>Confirm</Button>
           </div>
         </div>
       )}
@@ -225,7 +229,7 @@ export default function InitiatePaymentsPage() {
         open={otpOpen}
         onClose={() => setOtpOpen(false)}
         title="Verify Transaction Password and OTP"
-        footer={<><Button variant="ghost" onClick={() => setOtpOpen(false)}>Cancel</Button><Button onClick={submit} disabled={busy}>Submit</Button></>}
+        footer={<><Button variant="ghost" onClick={() => setOtpOpen(false)}>Cancel</Button><Button onClick={() => void submit()} disabled={submitting}>Submit</Button></>}
       >
         <div className="space-y-4">
           {confirmRes && (

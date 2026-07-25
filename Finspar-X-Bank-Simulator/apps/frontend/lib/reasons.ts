@@ -60,3 +60,20 @@ export function humanizeReasons(reasons: string[] | undefined | null): string[] 
   }
   return [...new Set(out)];
 }
+
+/**
+ * Human label for a raw model feature name, for the SHAP breakdown.
+ *
+ * Differs from humanizeReasons in what it does with an unknown token: that
+ * function HIDES it (a half-parsed reason reads as a bug), but here the feature
+ * is the row's subject — dropping it would leave an unexplained bar. So an
+ * unmapped name is de-snaked into something readable and kept.
+ */
+export function featureLabel(feature: string): string {
+  const mapped = FEATURE_LABELS[feature];
+  if (mapped) return mapped;
+  return feature
+    .replace(/^(f_|q_|bank_)/, '')
+    .replace(/_/g, ' ')
+    .trim();
+}

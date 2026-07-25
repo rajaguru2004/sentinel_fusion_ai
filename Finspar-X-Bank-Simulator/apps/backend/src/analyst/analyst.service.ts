@@ -136,6 +136,103 @@ export class AnalystService {
     }));
   }
 
+  /**
+   * Case correlation (ENHANCEMENTS.md §6).
+   *
+   * Given one fraud event, find the others that share an entity with it — same
+   * user, same device fingerprint, or same IP — inside a time window, and report
+   * WHICH link matched. That last part is the point: "3 related events" is a
+   * number, whereas "same device as 2 events, same IP as 1" is an investigation.
+   *
+   * Everything here comes from columns FraudEvent already stores; no new
+   * persistence, and the shape generalises directly to an entity graph.
+   */
+  async relatedEvents(eventId: string, windowHours = 24) {
+    const anchor = await this.prisma.fraudEvent.findUnique({ where: { id: eventId } });
+    if (!anchor) throw new NotFoundException('Event not found');
+
+    // Clamp: this is an indexed-but-unbounded scan, and the window is caller-supplied.
+    const hours = Math.min(Math.max(windowHours, 1), 24 * 30);
+    const since = new Date(anchor.createdAt.getTime() - hours * 3_600_000);
+    const until = new Date(anchor.createdAt.getTime() + hours * 3_600_000);
+
+    // Only match on entities the anchor actually has — otherwise a null device
+    // fingerprint would "match" every other event that is also missing one.
+    const links: { userId?: string; deviceFingerprint?: string; ip?: string }[] = [];
+    if (anchor.userId) links.push({ userId: anchor.userId });
+    if (anchor.deviceFingerprint) links.push({ deviceFingerprint: anchor.deviceFingerprint });
+    if (anchor.ip) links.push({ ip: anchor.ip });
+
+    if (!links.length) {
+      return { anchor: this.correlationRow(anchor), windowHours: hours, related: [], summary: emptySummary() };
+    }
+
+    const related = await this.prisma.fraudEvent.findMany({
+      where: {
+        id: { not: anchor.id },
+        createdAt: { gte: since, lte: until },
+        OR: links,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { payment: { select: { refNo: true, amount: true, status: true } } },
+    });
+
+    const summary = emptySummary();
+    const rows = related.map((e) => {
+      const sharedBy: string[] = [];
+      if (anchor.userId && e.userId === anchor.userId) {
+        sharedBy.push('user');
+        summary.user++;
+      }
+      if (anchor.deviceFingerprint && e.deviceFingerprint === anchor.deviceFingerprint) {
+        sharedBy.push('device');
+        summary.device++;
+      }
+      if (anchor.ip && e.ip === anchor.ip) {
+        sharedBy.push('ip');
+        summary.ip++;
+      }
+      return {
+        ...this.correlationRow(e),
+        sharedBy,
+        refNo: e.payment?.refNo ?? null,
+        amount: e.payment?.amount ?? null,
+        paymentStatus: e.payment?.status ?? null,
+      };
+    });
+
+    return { anchor: this.correlationRow(anchor), windowHours: hours, related: rows, summary };
+  }
+
+  /** Shared projection so the anchor and its neighbours render identically. */
+  private correlationRow(e: {
+    id: string;
+    createdAt: Date;
+    eventType: string;
+    riskScore: number;
+    riskLevel: string;
+    decision: string;
+    userId: string | null;
+    ip: string | null;
+    deviceFingerprint: string | null;
+  }) {
+    return {
+      id: e.id,
+      createdAt: e.createdAt,
+      eventType: e.eventType,
+      riskScore: e.riskScore,
+      riskLevel: e.riskLevel,
+      decision: e.decision,
+      userId: e.userId,
+      // Never ship a raw fingerprint/IP to the browser in full — enough to
+      // recognise a repeat, not enough to be a fresh identifier if the console
+      // response leaks.
+      ip: e.ip ? maskIp(e.ip) : null,
+      deviceFingerprint: e.deviceFingerprint ? `${e.deviceFingerprint.slice(0, 8)}…` : null,
+    };
+  }
+
   async cases() {
     const cases = await this.prisma.case.findMany({
       orderBy: { createdAt: 'desc' },
@@ -150,4 +247,15 @@ export class AnalystService {
       createdAt: c.createdAt,
     }));
   }
+}
+
+function emptySummary(): { user: number; device: number; ip: number } {
+  return { user: 0, device: 0, ip: 0 };
+}
+
+/** IPv4 -> 203.0.113.x, IPv6 -> first three groups. Enough to compare, not to reuse. */
+function maskIp(ip: string): string {
+  if (ip.includes(':')) return `${ip.split(':').slice(0, 3).join(':')}::…`;
+  const parts = ip.split('.');
+  return parts.length === 4 ? `${parts.slice(0, 3).join('.')}.x` : ip;
 }

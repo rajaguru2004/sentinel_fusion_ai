@@ -1,6 +1,9 @@
 'use client';
 
 import { RiskBadge, type RiskLevel as BadgeLevel } from '@/components/ui/Badge';
+import { ShapWaterfall } from '@/components/sentinel/ShapWaterfall';
+import { FusionMath } from '@/components/sentinel/FusionMath';
+import { GeoPanel, type GeoPoint } from '@/components/sentinel/GeoPanel';
 import {
   BAND_EDGES,
   CONTRIBUTION_LABELS,
@@ -57,7 +60,20 @@ function ContributionBars({ contributions }: { contributions: Contributions }) {
   );
 }
 
-export function VerdictCard({ result }: { result: ScoreOut }) {
+/**
+ * `geo` and `previousGeo` are optional context the caller supplies from the
+ * EVENT it submitted — the model's response carries a verdict, not the request's
+ * location, so it cannot be read off `result`.
+ */
+export function VerdictCard({
+  result,
+  geo,
+  previousGeo,
+}: {
+  result: ScoreOut;
+  geo?: GeoPoint;
+  previousGeo?: GeoPoint;
+}) {
   const d = result.degradation;
   return (
     <div className="space-y-5 rounded-[var(--radius-card)] border border-border bg-bg/40 p-5">
@@ -96,11 +112,22 @@ export function VerdictCard({ result }: { result: ScoreOut }) {
         </p>
       )}
 
+      {/* Quantified why — the SHAP values behind the plain-language reasons */}
+      {result.explanation?.top_features?.length ? (
+        <ShapWaterfall features={result.explanation.top_features} />
+      ) : null}
+
+      {/* Where */}
+      {geo && <GeoPanel current={geo} previous={previousGeo} />}
+
       {/* Fusion */}
       <div className="space-y-2">
         <p className="text-sm font-medium text-text">Command Center — which watchers fired</p>
         <ContributionBars contributions={result.contributions} />
       </div>
+
+      {/* The arithmetic behind the fused score */}
+      <FusionMath contributions={result.contributions} riskScore={result.risk_score} />
 
       {/* Degradation */}
       {d && (

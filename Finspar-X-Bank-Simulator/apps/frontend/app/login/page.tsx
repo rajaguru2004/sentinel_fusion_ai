@@ -88,7 +88,9 @@ export default function LoginPage() {
         ...values,
         deviceFingerprint: navigator.userAgent.slice(0, 64),
       });
-      setSession(data.accessToken, data.user as AuthUser);
+      // No token to store: the backend set an httpOnly session cookie and a
+      // readable CSRF cookie on this response. Only the display profile is kept.
+      setSession(data.user as AuthUser);
       toast.success(`Welcome, ${data.user.userId}`);
       router.push('/dashboard');
     } catch (e) {

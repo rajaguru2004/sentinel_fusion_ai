@@ -8,7 +8,22 @@ import { AuthService } from '../auth/auth.service';
 const NEUTRAL_USER_ID = 'If the details match our records, your User Id has been emailed.';
 const NEUTRAL_OTP = 'If the details match our records, an OTP has been sent to the registered email.';
 
-// Simple in-memory rate limit: 5 requests per identity per hour (single-instance demo).
+// Per-IDENTITY rate limit: 5 requests per identity per hour.
+//
+// ENHANCEMENTS.md §2 suggested deleting this once @nestjs/throttler landed. It
+// is deliberately kept, because the two limit different axes and neither
+// subsumes the other:
+//
+//   - The throttler's `issue` tier keys on the CALLER (IP): it stops one source
+//     hammering many accounts.
+//   - This keys on the TARGET (customer + user): it stops many sources hammering
+//     one account — i.e. mail-bombing a specific customer's inbox with reset
+//     mails from a botnet, which every per-IP limit in the world lets through.
+//
+// Still in-memory, so it resets on restart and is per-process. That is a real
+// limitation, not an oversight: it is a defence-in-depth layer over the account
+// lockout and OTP burn, not the primary control. Move it to Redis alongside the
+// throttler (THROTTLE_REDIS_URL) if this ever runs multi-instance.
 const RATE_LIMIT = 5;
 const WINDOW_MS = 60 * 60 * 1000;
 

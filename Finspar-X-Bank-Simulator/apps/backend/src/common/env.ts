@@ -10,6 +10,20 @@ function optional(key: string, fallback: string): string {
   return process.env[key] ?? fallback;
 }
 
+/**
+ * A rate-limit count from env. `0` means "no limit" — @nestjs/throttler treats
+ * Infinity as unlimited, so an operator can switch a tier off during a demo or
+ * load test without a code change. A malformed value falls back to the default
+ * rather than silently becoming 0, which would disable the limit by typo.
+ */
+function limitFrom(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return n === 0 ? Number.POSITIVE_INFINITY : n;
+}
+
 export const env = {
   get databaseUrl(): string {
     return required('DATABASE_URL');
@@ -20,6 +34,30 @@ export const env = {
   get jwtExpiresIn(): string {
     return optional('JWT_EXPIRES_IN', '15m');
   },
+  /**
+   * JWT_EXPIRES_IN as milliseconds, for the session cookie's Max-Age so the
+   * cookie expires exactly when the token it carries does. Supports the `ms`
+   * shorthand the JWT library accepts (`15m`, `2h`, `7d`, or bare seconds).
+   */
+  get jwtExpiresInMs(): number {
+    const raw = this.jwtExpiresIn.trim();
+    const m = /^(\d+)\s*(ms|s|m|h|d)?$/.exec(raw);
+    if (!m) return 15 * 60_000;
+    const n = Number(m[1]);
+    switch (m[2]) {
+      case 'ms':
+        return n;
+      case 'h':
+        return n * 3_600_000;
+      case 'd':
+        return n * 86_400_000;
+      case 'm':
+        return n * 60_000;
+      // Bare number = seconds, matching the JWT spec's `expiresIn`.
+      default:
+        return n * 1000;
+    }
+  },
   get otpTtlSeconds(): number {
     return Number(optional('OTP_TTL_SECONDS', '100'));
   },
@@ -28,6 +66,79 @@ export const env = {
   },
   get loginMaxAttempts(): number {
     return Number(optional('LOGIN_MAX_ATTEMPTS', '5'));
+  },
+  get isProduction(): boolean {
+    return optional('NODE_ENV', 'development') === 'production';
+  },
+  /**
+   * DEMO ONLY. Makes the OTP a fixture instead of a secret: `issue()` returns a
+   * fixed `123456` and the requestId is a short 4–5 digit number so it can be
+   * typed by hand on stage. Everything around it stays real (bcrypt hash, TTL,
+   * attempt burn, resend cooldown) — only the values are predictable.
+   *
+   * Defaults ON so existing demo scripts keep working, but a production boot
+   * (NODE_ENV=production) refuses to start with it enabled — see assertSafeConfig().
+   */
+  get otpDemoMode(): boolean {
+    return optional('OTP_DEMO_MODE', 'true') === 'true';
+  },
+  auth: {
+    /** Name of the httpOnly cookie carrying the JWT. */
+    get cookieName(): string {
+      return optional('AUTH_COOKIE_NAME', 'finspark_session');
+    },
+    /**
+     * `Secure` on the session cookie. Must be true in production; false for
+     * local http://localhost development or the browser drops the cookie.
+     */
+    get cookieSecure(): boolean {
+      return optional('AUTH_COOKIE_SECURE', String(optional('NODE_ENV', 'development') === 'production')) === 'true';
+    },
+    /**
+     * SameSite policy. `strict` is right when frontend and API share a site.
+     * Use `lax` if the SPA is served from a different host than the API.
+     */
+    get cookieSameSite(): 'strict' | 'lax' | 'none' {
+      return optional('AUTH_COOKIE_SAMESITE', 'strict') as 'strict' | 'lax' | 'none';
+    },
+    /**
+     * Accept `Authorization: Bearer` in addition to the cookie. Needed by the
+     * Swagger console and the Playwright API suite, which cannot hold cookies.
+     * Turn OFF in production so the cookie is the only accepted carrier.
+     */
+    get allowBearer(): boolean {
+      return optional('AUTH_ALLOW_BEARER', String(optional('NODE_ENV', 'development') !== 'production')) === 'true';
+    },
+  },
+  throttle: {
+    /**
+     * Optional Redis backing for the rate limiter. Unset = in-process memory,
+     * which is only correct while exactly one backend instance runs.
+     * Example: redis://localhost:6379
+     */
+    get redisUrl(): string {
+      return optional('THROTTLE_REDIS_URL', '');
+    },
+    /**
+     * Requests per minute per IP, by tier. Raise these rather than editing
+     * throttler.config.ts. Set any of them to 0 to disable that tier entirely
+     * (useful when a demo or load test is fighting the limiter).
+     *
+     * The default tier is deliberately high: the analyst console polls ~22
+     * req/min while merely sitting open, before any user action.
+     */
+    get defaultLimit(): number {
+      return limitFrom('THROTTLE_DEFAULT_LIMIT', 600);
+    },
+    get authLimit(): number {
+      return limitFrom('THROTTLE_AUTH_LIMIT', 20);
+    },
+    get issueLimit(): number {
+      return limitFrom('THROTTLE_ISSUE_LIMIT', 10);
+    },
+    get moneyLimit(): number {
+      return limitFrom('THROTTLE_MONEY_LIMIT', 120);
+    },
   },
   smtp: {
     get host(): string {

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ThrottleTier } from '../common/throttler.config';
 import type { Request } from 'express';
 import { Rail } from '@prisma/client';
 import { PaymentsService } from './payments.service';
@@ -50,11 +51,15 @@ export class PaymentsController {
     return this.payments.initiate(user, dto);
   }
 
+  // confirm issues an OTP and submit consumes one — both are money-path state
+  // changes, so they carry the `money` tier rather than the generous default.
+  @ThrottleTier('money')
   @Post(':id/confirm')
   confirm(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Req() req: Request) {
     return this.payments.confirm(user, id, this.ctx(req, user));
   }
 
+  @ThrottleTier('money')
   @Post(':id/submit')
   submit(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: SubmitPaymentDto) {
     return this.payments.submit(user, id, dto);

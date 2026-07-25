@@ -336,6 +336,13 @@ model LedgerEntry {
   account Account  @relation(fields: [accountId], references: [id])
 
   @@index([accountId, postedAt])
+  // Idempotency key for the money path. One payment can produce exactly one
+  // DEBIT and one CREDIT row, so a second postPayment() for the same payment
+  // fails on this constraint and rolls its whole transaction back — a
+  // double-click, a retried submit and a re-run cut-off job can never post
+  // twice. `paymentId` is nullable (opening/external entries) and Postgres
+  // treats NULLs as distinct, so those rows are unaffected.
+  @@unique([paymentId, direction])
   @@map("ledger_entries")
 }
 

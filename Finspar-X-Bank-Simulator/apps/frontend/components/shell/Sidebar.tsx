@@ -7,6 +7,7 @@ import { ChevronDown, LogOut, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NAV } from '@/lib/nav';
 import { useAuthStore } from '@/lib/auth-store';
+import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
@@ -22,9 +23,19 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
     return state;
   });
 
-  const logout = (): void => {
-    clear();
-    router.push('/login');
+  // The session lives in an httpOnly cookie the page cannot touch, so signing
+  // out has to ask the server to clear it. Local state is cleared regardless of
+  // the call's outcome — a failed logout must still end the visible session
+  // rather than leave the user looking signed in.
+  const logout = async (): Promise<void> => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Already expired or the API is unreachable; the redirect still applies.
+    } finally {
+      clear();
+      router.push('/login');
+    }
   };
 
   return (

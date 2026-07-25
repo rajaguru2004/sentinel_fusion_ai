@@ -3,6 +3,7 @@ import { RiskLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SCORER, type Scorer, type UnifiedEvent, type RiskVerdict } from './scorer.interface';
 import { RiskAlertService } from './risk-alert.service';
+import { LiveAlertsService } from './live-alerts.service';
 import { resolveGeo } from './geoip';
 import { env } from '../common/env';
 
@@ -31,6 +32,7 @@ export class FraudGateway {
     private readonly prisma: PrismaService,
     @Inject(SCORER) private readonly scorer: Scorer,
     private readonly alerts: RiskAlertService,
+    private readonly live: LiveAlertsService,
   ) {}
 
   private decide(level: RiskLevel): Decision {
@@ -60,7 +62,7 @@ export class FraudGateway {
     const verdict = applyCountryPolicy(event, mlVerdict);
     const decision = this.decide(verdict.riskLevel);
 
-    await this.prisma.fraudEvent.create({
+    const persisted = await this.prisma.fraudEvent.create({
       data: {
         eventId: event.eventId,
         paymentId: ctx.paymentId,
@@ -74,6 +76,20 @@ export class FraudGateway {
         ip: ctx.ip,
         deviceFingerprint: ctx.deviceFingerprint,
       },
+    });
+
+    // Push to any attached analyst console (§6). Fire-and-forget and internally
+    // guarded — a live viewer must never be able to affect the money path.
+    this.live.publish({
+      id: persisted.id,
+      eventType: event.eventType,
+      riskScore: verdict.riskScore,
+      riskLevel: verdict.riskLevel,
+      decision,
+      reasons: verdict.reasons,
+      userId: ctx.userId,
+      paymentId: ctx.paymentId,
+      amount: event.amount != null ? String(event.amount) : undefined,
     });
 
     // One qualifying event -> one mail. Not awaited: SMTP must never sit on the

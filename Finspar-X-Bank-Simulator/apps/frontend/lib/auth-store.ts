@@ -12,29 +12,32 @@ export interface AuthUser {
 }
 
 interface AuthState {
-  token: string | null;
   user: AuthUser | null;
-  setSession: (token: string, user: AuthUser) => void;
+  setSession: (user: AuthUser) => void;
   updateUser: (partial: Partial<AuthUser>) => void;
   clear: () => void;
 }
 
+/**
+ * Client-side session *display* state only.
+ *
+ * The JWT deliberately does not live here any more (ENHANCEMENTS.md §4). It is
+ * held in an httpOnly cookie the browser attaches on its own, so no script —
+ * including an injected one — can read it. What remains is the profile we render
+ * in the header: non-sensitive, and losing it only costs a re-fetch.
+ *
+ * Because this is no longer the source of truth for auth, a stale persisted user
+ * cannot grant access: the cookie is what the API checks, and a 401 redirects to
+ * login regardless of what is cached here.
+ */
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      token: null,
       user: null,
-      setSession: (token, user) => {
-        // Mirror the token into a plain key so the axios interceptor can read it.
-        if (typeof window !== 'undefined') localStorage.setItem('finspark-token', token);
-        set({ token, user });
-      },
+      setSession: (user) => set({ user }),
       updateUser: (partial) =>
         set((state) => ({ user: state.user ? { ...state.user, ...partial } : state.user })),
-      clear: () => {
-        if (typeof window !== 'undefined') localStorage.removeItem('finspark-token');
-        set({ token: null, user: null });
-      },
+      clear: () => set({ user: null }),
     }),
     { name: 'finspark-auth' },
   ),
