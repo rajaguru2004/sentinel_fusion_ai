@@ -26,17 +26,47 @@ export class MailerService {
     return this.transporter;
   }
 
-  async send(to: string, subject: string, html: string): Promise<void> {
+  /**
+   * `opts.from` overrides the From header (default: the authenticated mailbox).
+   * Providers generally require From to match the authenticated account, so an
+   * override may be rewritten or rejected upstream — see .env.example.
+   */
+  async send(
+    to: string,
+    subject: string,
+    html: string,
+    opts?: { from?: string },
+  ): Promise<void> {
     const transport = this.getTransport();
     const recipient = env.smtp.to || to; // demo recipient override
+    const from = opts?.from || env.smtp.user;
     if (!transport) {
       this.logger.warn(
-        `[DEV MAIL] To: ${recipient} | ${subject}\n${html.replace(/<[^>]+>/g, ' ').trim()}`,
+        `[DEV MAIL] From: ${from} | To: ${recipient} | ${subject}\n` +
+          `${html.replace(/<[^>]+>/g, ' ').trim()}`,
       );
       return;
     }
-    await transport.sendMail({ from: env.smtp.user, to: recipient, subject, html });
-    this.logger.log(`Sent "${subject}" to ${recipient}`);
+    // Log the attempt BEFORE handing off to SMTP: on a hang or a hard failure
+    // this line is the only record of what was addressed to whom.
+    this.logger.log(
+      `[MAIL SEND] From: ${from} | To: ${recipient} | Host: ${env.smtp.host}:${env.smtp.port} | ${subject}`,
+    );
+    try {
+      const info = await transport.sendMail({ from, to: recipient, subject, html });
+      this.logger.log(
+        `[MAIL SENT] From: ${from} | To: ${recipient} | id=${info.messageId ?? 'none'} | ` +
+          `accepted=${JSON.stringify(info.accepted ?? [])} ` +
+          `rejected=${JSON.stringify(info.rejected ?? [])} | ${subject}`,
+      );
+    } catch (err) {
+      // Rethrow: OTP callers must fail loudly, and the risk-alert path already
+      // catches and logs on its own. This line just records From/To alongside it.
+      this.logger.error(
+        `[MAIL FAILED] From: ${from} | To: ${recipient} | ${subject} — ${String(err)}`,
+      );
+      throw err;
+    }
   }
 
   async sendOtp(to: string, code: string, purposeLabel: string, requestId: string): Promise<void> {

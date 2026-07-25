@@ -26,7 +26,7 @@ def spec(client):
 
 
 def test_every_live_route_is_documented(doc, spec):
-    documented = set(re.findall(r"`(/[a-z/]+)`", doc))
+    documented = set(re.findall(r"`(/[a-zA-Z0-9_/{}-]+)`", doc))
     live = set(spec["paths"])
     missing = live - documented
     assert not missing, f"routes exist but are undocumented: {sorted(missing)}"

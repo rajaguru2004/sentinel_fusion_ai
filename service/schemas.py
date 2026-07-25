@@ -12,6 +12,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .graph.models import ThreatGraphResponse
+
 Domain = Literal["financial", "cyber", "behaviour", "quantum", "threat_intel"]
 RiskLevel = Literal["low", "medium", "high", "critical"]
 
@@ -158,6 +160,7 @@ class ScoreOut(BaseModel):
     degraded: bool = False       # True when scored without live feature-store state
     degradation: DegradedDetail = DegradedDetail()
     explanation: Explanation | None = None
+    threat_graph: ThreatGraphResponse | None = None
 
 
 class BatchIn(BaseModel):

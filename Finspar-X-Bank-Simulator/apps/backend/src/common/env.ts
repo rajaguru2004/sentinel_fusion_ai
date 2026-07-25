@@ -67,6 +67,42 @@ export const env = {
       return Number(optional('SENTINEL_TIMEOUT_MS', '800'));
     },
   },
+  // Risk-alert email. Every scored event at or above `minLevel` mails the
+  // CUSTOMER the event belongs to — no batching, no throttling: one event, one
+  // mail. Sent fire-and-forget off the money path so SMTP latency never delays
+  // a payment.
+  riskAlert: {
+    get enabled(): boolean {
+      return optional('RISK_ALERT_ENABLED', 'true') === 'true';
+    },
+    /**
+     * From header on alert mail. Empty (the default) means "send as the
+     * authenticated mailbox", i.e. EMAIL_USER — which is what every provider
+     * expects. Set RISK_ALERT_FROM only to an address the SMTP account is
+     * actually allowed to send as (a verified alias / Send-As), or the provider
+     * rejects the message.
+     */
+    get from(): string {
+      return optional('RISK_ALERT_FROM', '') || this.smtpUser;
+    },
+    /**
+     * Fallback recipient, used ONLY when the scored event has no resolvable
+     * customer email (no userId, or the user row is gone). Comma-separated.
+     * The normal recipient is the customer's own address. Defaults to the
+     * sending mailbox so an alert is never addressed to nobody.
+     */
+    get fallbackTo(): string {
+      return optional('RISK_ALERT_FALLBACK_TO', '') || this.smtpUser;
+    },
+    /** Nested objects cannot see the outer `env`; read the mailbox directly. */
+    get smtpUser(): string {
+      return optional('EMAIL_USER', '');
+    },
+    /** LOW | MEDIUM | HIGH | CRITICAL — lowest band that triggers a mail. */
+    get minLevel(): string {
+      return optional('RISK_ALERT_MIN_LEVEL', 'MEDIUM').toUpperCase();
+    },
+  },
   geo: {
     // DEV ONLY. Browser->localhost traffic is loopback (127.0.0.1), so a VPN is
     // invisible to req.ip. When true, a private/loopback client IP falls back to
