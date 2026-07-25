@@ -5,6 +5,12 @@
  *
  * NOTE: none of this is real data. See BANK_SIMULATOR_SPEC.md §14.
  */
+try {
+  process.loadEnvFile?.();
+} catch {
+  // Ignore if .env is missing or already loaded
+}
+
 import { PrismaClient, Role, AccountType, BeneficiaryStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
