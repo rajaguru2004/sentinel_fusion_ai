@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# env — secrets live only here, never committed
+.env
+.env.local
+apps/backend/.env
+apps/frontend/.env.local
+
+# builds
+dist/
+build/
+.next/
+out/
+
+# prisma
+apps/backend/prisma/*.db
+
+# logs
+*.log
+npm-debug.log*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# docker data
+docker/dockerdata/
+
+# test / coverage
+coverage/
+
+# training export output (generated corpus, can be large)
+exports/
+apps/backend/exports/

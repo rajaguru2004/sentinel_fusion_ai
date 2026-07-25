@@ -1,0 +1,21 @@
+{
+  "name": "finspark-bank-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FinSpark — Indian corporate internet-banking simulator fronting the sentinel_fusion_ai fraud engine",
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run start:dev --workspace apps/backend",
+    "dev:frontend": "npm run dev --workspace apps/frontend",
+    "db:migrate": "npm run prisma:migrate --workspace apps/backend",
+    "db:seed": "npm run prisma:seed --workspace apps/backend",
+    "up": "docker compose up -d",
+    "down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

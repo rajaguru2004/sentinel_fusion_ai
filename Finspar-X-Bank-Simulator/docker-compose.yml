@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: finspark-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: finspark
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finspark_dev}
+      POSTGRES_DB: finspark
+    ports:
+      - "5433:5432" # host 5433 -> container 5432 (host 5432 is taken by a local Postgres service)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finspark -d finspark"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./apps/backend
+    container_name: finspark-backend
+    restart: unless-stopped
+    env_file:
+      - ./apps/backend/.env
+    environment:
+      DATABASE_URL: postgresql://finspark:${POSTGRES_PASSWORD:-finspark_dev}@postgres:5432/finspark
+      # Reach the Sentinel model running on the host (or in its own compose stack).
+      # host.docker.internal + the extra_hosts mapping below works on Linux too.
+      SENTINEL_URL: ${SENTINEL_URL:-http://host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./apps/frontend
+    container_name: finspark-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

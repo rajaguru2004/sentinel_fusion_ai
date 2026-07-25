@@ -1,0 +1,439 @@
+// FinSpark bank-simulator — Prisma schema
+// India-only corporate internet banking. All money is BigInt paise, never float.
+// Maker-checker decision (2026-07-22): single-operator flow. Role enum kept,
+// AUTHORIZER unused in Phase 1; no authorization queue. See BANK_SIMULATOR_SPEC.md §13.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  MAKER
+  AUTHORIZER // reserved — unused in Phase 1 single-operator flow
+  VIEWER
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AccountType {
+  SAVINGS
+  CURRENT
+  FD_TD
+}
+
+enum Rail {
+  IFT
+  IMPS
+  NEFT
+  RTGS
+}
+
+enum TransferMode {
+  IFSC_ACCOUNT
+  MMID
+}
+
+enum BeneficiaryStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  DELETED
+}
+
+enum PaymentStatus {
+  NEW
+  PENDING_AUTH // reserved for future maker-checker; not produced in Phase 1
+  HELD // fraud gateway HIGH band — funds moved to holdAmount
+  CHALLENGED // fraud gateway MEDIUM band — re-issued OTP
+  BLOCKED // fraud gateway CRITICAL band
+  PROCESSING
+  COMPLETED
+  FAILED
+  REJECTED
+  DELETED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum OtpPurpose {
+  PAYMENT
+  PASSWORD_RESET
+  TXN_PASSWORD
+  UNLOCK
+}
+
+enum CaseSource {
+  AI_FLAGGED
+  CUSTOMER_REPORTED
+}
+
+enum CaseStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id         String       @id @default(cuid())
+  customerId String       @unique // e.g. "83840226"
+  name       String
+  status     EntityStatus @default(ACTIVE)
+  // Profile signals the Sentinel model trains on (Step 8). Fabricated demo data.
+  customerAge Int?   // years
+  incomeBand  Float? // normalized 0..1 band
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  users         CustomerUser[]
+  accounts      Account[]
+  beneficiaries Beneficiary[]
+  payments      Payment[]
+  cases         Case[]
+
+  @@map("customers")
+}
+
+model User {
+  id              String       @id @default(cuid())
+  userId          String       @unique // e.g. "TARAKESH"
+  passwordHash    String
+  txnPasswordHash String?
+  mobile          String
+  email           String
+  status          EntityStatus @default(ACTIVE)
+  failedAttempts  Int          @default(0)
+  lockedAt        DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  customers        CustomerUser[]
+  passwordHistory  PasswordHistory[]
+  loginEvents      LoginEvent[]
+  fraudEvents      FraudEvent[]
+
+  @@map("users")
+}
+
+// One Customer has many Users; one User may operate several Customers.
+model CustomerUser {
+  id         String   @id @default(cuid())
+  customerId String
+  userId     String
+  role       Role     @default(MAKER)
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([customerId, userId])
+  @@map("customer_users")
+}
+
+model PasswordHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  passwordHash String
+  kind         String // "LOGIN" | "TXN"
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, kind])
+  @@map("password_history")
+}
+
+// ---------------------------------------------------------------------------
+// Accounts & balances (all amounts BigInt paise)
+// ---------------------------------------------------------------------------
+
+model Account {
+  id            String      @id @default(cuid())
+  customerId    String
+  accountNumber String      @unique
+  accountName   String
+  accountType   AccountType
+  schemeType    String? // e.g. "CAA"
+  currency      String      @default("INR")
+
+  clearBalance    BigInt @default(0)
+  fundsInClearing BigInt @default(0)
+  holdAmount      BigInt @default(0) // liens AND fraud holds — gateway writes here
+  fdBalance       BigInt @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  debitPayments Payment[]     @relation("DebitAccount")
+  ledgerEntries LedgerEntry[]
+
+  @@index([customerId])
+  @@map("accounts")
+}
+
+// ---------------------------------------------------------------------------
+// Beneficiaries
+// ---------------------------------------------------------------------------
+
+model Beneficiary {
+  id            String  @id @default(cuid())
+  customerId    String
+  code          String // unique per customer, max 20
+  name          String
+  nameAsFetched String?
+  accountNumber String
+  ifsc          String?
+  isOwnBank     Boolean @default(false)
+
+  allowIFT  Boolean @default(false)
+  allowRTGS Boolean @default(false)
+  allowNEFT Boolean @default(false)
+  allowIMPS Boolean @default(false)
+
+  addressLine1 String?
+  addressLine2 String?
+  state        String?
+  city         String?
+  pinCode      String?
+  phone        String?
+  email        String?
+
+  status BeneficiaryStatus @default(PENDING)
+
+  createdBy   String?
+  activatedBy String?
+  activatedAt DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  customer Customer  @relation(fields: [customerId], references: [id])
+  payments Payment[]
+
+  @@unique([customerId, code])
+  @@index([customerId, status])
+  @@map("beneficiaries")
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id            String  @id @default(cuid())
+  refNo         String  @unique // GX + DDMMYYYY + 6-digit serial
+  custRefNo     String // unique per customer per financial year
+  customerId    String
+  debitAccountId String
+  beneficiaryId String
+
+  amount        BigInt // paise
+  amountInWords String
+  rail          Rail
+  paymentMode   String
+  transferMode  TransferMode @default(IFSC_ACCOUNT)
+  remarks       String?
+
+  status PaymentStatus @default(NEW)
+
+  // Fraud gateway seams — populated by StubScorer in Phase 1
+  riskScore   Float?
+  riskLevel   RiskLevel?
+  riskReasons Json?
+  // An authorizer released this held payment after review — re-authorising skips
+  // the fraud gateway so it isn't re-held. Reset if the amount is later changed.
+  reviewApproved Boolean @default(false)
+
+  initiatedBy  String?
+  authorizedBy String? // reserved — unused in single-operator flow
+  valueDate    DateTime?
+  postedAt     DateTime?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  debitAccount  Account        @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  beneficiary   Beneficiary    @relation(fields: [beneficiaryId], references: [id])
+  otpChallenges OtpChallenge[]
+  ledgerEntries LedgerEntry[]
+  fraudEvents   FraudEvent[]
+  cases         Case[]
+
+  @@unique([customerId, custRefNo])
+  @@index([customerId, status])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// OTP (shared across payment, password reset, txn-password, unlock)
+// ---------------------------------------------------------------------------
+
+model OtpChallenge {
+  id          String     @id @default(cuid())
+  purpose     OtpPurpose
+  paymentId   String?
+  userId      String?
+  requestId   String     @unique // short numeric id shown in UI
+  codeHash    String // bcrypt hash — never the plain code
+  attempts    Int        @default(0)
+  resentCount Int        @default(0)
+  issuedAt    DateTime   @default(now())
+  expiresAt   DateTime // issuedAt + OTP_TTL_SECONDS
+  consumedAt  DateTime?
+
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  @@index([purpose, userId])
+  @@map("otp_challenges")
+}
+
+// ---------------------------------------------------------------------------
+// Ledger (double-entry — every payment writes matched DEBIT and CREDIT rows)
+// ---------------------------------------------------------------------------
+
+model LedgerEntry {
+  id           String          @id @default(cuid())
+  paymentId    String? // null for external credits / opening entries
+  accountId    String
+  direction    LedgerDirection
+  amount       BigInt
+  balanceAfter BigInt
+  description  String? // narration shown on statements
+  valueDate    DateTime        @default(now())
+  postedAt     DateTime        @default(now())
+
+  payment Payment? @relation(fields: [paymentId], references: [id])
+  account Account  @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, postedAt])
+  @@map("ledger_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Fraud events & cases
+// ---------------------------------------------------------------------------
+
+model FraudEvent {
+  id                String     @id @default(cuid())
+  // Stable idempotency key sent to the model as event_id (e.g. `pay:{paymentId}`,
+  // `login:{loginEventId}`). Reused by the feedback loop to label the same event.
+  eventId           String?
+  paymentId         String?
+  userId            String?
+  eventType         String // LOGIN | BENEFICIARY_ADD | BENEFICIARY_ACTIVATE | PAYMENT_INITIATE | PAYMENT_MODIFY | VELOCITY
+  riskScore         Float
+  riskLevel         RiskLevel
+  modelScores       Json?
+  shapReasons       Json?
+  decision          String // EXECUTE | CHALLENGE | HOLD | BLOCK
+  ip                String?
+  deviceFingerprint String?
+  createdAt         DateTime   @default(now())
+
+  payment Payment? @relation(fields: [paymentId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
+
+  @@index([riskLevel, createdAt])
+  @@index([eventId])
+  @@map("fraud_events")
+}
+
+model Case {
+  id          String     @id @default(cuid())
+  trackingRef String     @unique
+  customerId  String
+  paymentId   String?
+  source      CaseSource
+  fraudType   String?
+  amount      BigInt?
+  status      CaseStatus @default(OPEN)
+  assignedTo  String?
+  resolution  String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  customer Customer   @relation(fields: [customerId], references: [id])
+  payment  Payment?   @relation(fields: [paymentId], references: [id])
+  notes    CaseNote[]
+
+  @@index([customerId, status])
+  @@map("cases")
+}
+
+model CaseNote {
+  id        String   @id @default(cuid())
+  caseId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id])
+
+  @@map("case_notes")
+}
+
+// ---------------------------------------------------------------------------
+// Audit & login events
+// ---------------------------------------------------------------------------
+
+model LoginEvent {
+  id                String   @id @default(cuid())
+  userId            String
+  customerId        String?
+  ip                String?
+  deviceFingerprint String?
+  userAgent         String?
+  success           Boolean
+  riskScore         Float?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("login_events")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}

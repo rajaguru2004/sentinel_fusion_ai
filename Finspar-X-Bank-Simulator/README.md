@@ -1,0 +1,202 @@
+# 🏦 FinSpark — Bank Simulator
+
+**A high-fidelity Indian corporate internet-banking platform that routes every rupee through a pluggable fraud gateway — so an ML fraud engine can be demonstrated inside a real bank, not a terminal.**
+
+```bash
+docker compose up -d postgres            # database
+npm run dev:backend                      # API   → http://localhost:3001/api  (Swagger at /api/docs)
+npm run dev:frontend                     # UI    → http://localhost:3000
+```
+
+> Full run guide with demo credentials and a guided click-through: [`../WALKTHROUGH.md`](../WALKTHROUGH.md).
+> Complete functional specification: [`BANK_SIMULATOR_SPEC.md`](BANK_SIMULATOR_SPEC.md).
+
+---
+
+## 1. Why it exists
+
+Fraud models are usually shown in isolation — a notebook, a score, a terminal. But a score means nothing until it sits **inside the transaction it's judging**: the balance it can freeze, the OTP it can demand, the beneficiary whose name doesn't match, the analyst who has to review the hold.
+
+FinSpark is that surrounding bank. It reproduces the flows of a real Indian corporate net-banking portal — login hardening, accounts, beneficiary lifecycle, multi-rail payments, a double-entry ledger, disputes, and an analyst console — and threads **one fraud gateway** through the single point where money actually moves. Swap the scorer, and the same UI demonstrates a different brain. Nothing else changes.
+
+- 🇮🇳 **India-only, INR-only.** Money is stored as `BigInt` **paise** — never a float. Amounts render with Indian grouping (`₹72,20,196.50`, never `₹7,220,196.50`).
+- 🧩 **Phase 1 (this build): the bank.** Every screen and rule, plus every fraud-engine seam, working end to end.
+- 🔌 **Phase 2 (separate team): the ML.** Replace the in-process scorer with an HTTP call to the `sentinel_fusion_ai` FastAPI service. **No call site changes.**
+
+## 2. What's inside
+
+```mermaid
+flowchart LR
+    subgraph FE["🖥️ Frontend — Next.js 16 / React 19"]
+        UI["Auth · Accounts · Beneficiaries<br/>Payments · Disputes · Analyst"]
+    end
+    subgraph BE["⚙️ Backend — NestJS 11"]
+        AUTH["🔐 auth · recovery · otp"]
+        MONEY["💸 payments · ledger · accounts"]
+        BENE["👥 beneficiaries"]
+        CASE["🧑‍💼 disputes · analyst · dashboard"]
+        GATE["🧠 fraud gateway"]
+        MAIL["✉️ mailer"]
+    end
+    DB[("🗄️ PostgreSQL 16<br/>Prisma · 14 models")]
+    SCORER{{"Scorer interface<br/>Stub · Heuristic · (Phase 2) Http"}}
+
+    UI -->|"JWT / REST"| AUTH & MONEY & BENE & CASE
+    MONEY --> GATE --> SCORER
+    AUTH --> MAIL
+    AUTH & MONEY & BENE & CASE & GATE --> DB
+```
+
+A `npm` **workspaces monorepo** with two apps and a Postgres container:
+
+| Layer | Stack |
+|---|---|
+| **Backend** | NestJS 11 · Prisma 5.22 · PostgreSQL 16 · JWT (passport-jwt) · class-validator · bcryptjs · nodemailer · @nestjs/schedule (cron) · @nestjs/swagger |
+| **Frontend** | Next.js 16 (App Router) · React 19 · Tailwind CSS v4 · TanStack Query · zustand · react-hook-form + zod · recharts · lucide-react · sonner |
+| **Infra** | Docker Compose (Postgres) · npm workspaces · Node ≥ 24 |
+
+## 3. How a payment flows — start to finish
+
+Every money-moving action passes through the **fraud gateway before the ledger is ever touched**. The gateway builds a unified event, asks the active `Scorer` for a verdict, and a decision engine turns the risk band into one of four outcomes.
+
+```mermaid
+flowchart TD
+    A["📝 Initiate<br/>amount · beneficiary · rail"] --> B["👁️ Preview"]
+    B --> C["🧠 Confirm → Fraud Gateway<br/>build event · Scorer.score()"]
+    C --> D{"Risk band"}
+    D -->|"< 0.25 LOW"| E1["🟢 OTP challenge"]
+    D -->|"< 0.50 MEDIUM"| E2["🟡 CHALLENGED<br/>re-issued OTP"]
+    D -->|"< 0.75 HIGH"| E3["🟠 HELD<br/>funds → holdAmount, analyst queue"]
+    D -->|"≥ 0.75 CRITICAL"| E4["🔴 BLOCKED<br/>account frozen, case opened"]
+    E1 & E2 --> F["🔑 Submit<br/>Transaction Password + OTP"]
+    F --> G{"Cut-off / limit?"}
+    G -->|"NEFT/RTGS after 19:30<br/>or over ₹25,00,000"| H["⏸️ HELD_CUTOFF<br/>value-dated next working day"]
+    G -->|"clear"| I["✅ COMPLETED<br/>double-entry posted to ledger"]
+```
+
+**The four decision bands** (`fraud/heuristic-scorer.ts` + `fraud/fraud-gateway.service.ts`):
+
+| Band | Score | Decision | Payment status | Operator can complete? |
+|---|---|---|---|---|
+| 🟢 **LOW** | `< 0.25` | EXECUTE | stays `NEW` | Yes — OTP + txn password |
+| 🟡 **MEDIUM** | `< 0.50` | CHALLENGE | `CHALLENGED` | Yes — re-issued OTP + txn password |
+| 🟠 **HIGH** | `< 0.75` | HOLD | `HELD` | No — funds held for analyst review |
+| 🔴 **CRITICAL** | `≥ 0.75` | BLOCK | `BLOCKED` | No — account frozen, case raised |
+
+**The ledger is real double-entry.** A posted payment debits the source account and credits a per-customer `SETTLE-` counter-account, in paise, with balances recomputed and `holdAmount` moved for held funds. An `@Cron('30 19 * * 1-5')` cut-off job releases value-dated items on the next working day.
+
+## 4. The fraud gateway is the whole point
+
+```
+Request → FraudGateway → build UnifiedEvent → Scorer.score() → RiskVerdict
+        → Decision Engine → execute | challenge (OTP) | hold | block → FraudEvent recorded
+```
+
+The scorer is chosen behind a single interface, so the bank is brain-agnostic:
+
+| Scorer | Behaviour | Use |
+|---|---|---|
+| `StubScorer` | Always `LOW 0.05` (spec-exact) | Baseline / "quiet bank" |
+| `HeuristicScorer` **(active)** | Transparent signals — beneficiary age, amount-vs-mean, velocity, name mismatch, new device — with SHAP-style reason strings | Demoable risk variety in Phase 1 |
+| `HttpScorer` *(Phase 2)* | Calls `sentinel_fusion_ai` FastAPI `/score` | Real ML verdicts |
+
+Swapping is **one line** in `apps/backend/src/fraud/fraud.module.ts` — every call site keeps calling `gateway.assess(...)`.
+
+## 5. Feature map
+
+Single-operator model (maker-checker collapsed to one operator who initiates *and* authorizes).
+
+| Area | Screens / capabilities |
+|---|---|
+| 🔐 **Auth & recovery** | Login (CAPTCHA + virtual keyboard), account lock on failed attempts, forgot user-id / password, unlock-me, OTP (bcrypt-hashed, replay-blocked), change login & transaction password, password-history reuse guard |
+| 👤 **Profile** | View identity; edit registered mobile/email gated behind the login password (audit-logged) |
+| 🏦 **Accounts** | Balance, full statement (with risk badges + **Excel export**), mini-statement, portfolio |
+| 👥 **Beneficiaries** | List-first maintenance (add / **edit** / delete), single transaction-type per payee, simulated name-fetch → **name-mismatch fraud signal**, activation with a 30-minute high-risk cooling period |
+| 💸 **Payments** | Initiate (IFT / IMPS / NEFT / RTGS) with animated risk meter, modify draft payments, and **Authorize & Send** from the modify screen |
+| 🧑‍💼 **Disputes** | Report fraudulent transaction (**freezes the account**, opens a case), raise grievance, track request |
+| 📊 **Analyst** | Live polling feed of every scored event — risk badges, reason chips, band distribution, held/blocked totals, open cases |
+
+## 6. Data model
+
+Prisma over PostgreSQL — **14 models, 11 enums**. Money columns are `BigInt` paise throughout.
+
+```
+Customer · User · CustomerUser · PasswordHistory · Account · Beneficiary
+Payment · OtpChallenge · LedgerEntry · FraudEvent · Case · CaseNote
+LoginEvent · AuditLog
+```
+
+Enums pin the domain: `Role`, `AccountType`, `Rail`, `TransferMode`, `BeneficiaryStatus`, `PaymentStatus`, `RiskLevel`, `LedgerDirection`, `OtpPurpose`, `CaseSource`, `CaseStatus`.
+
+## 7. Setup & commands
+
+**Prerequisites:** Node ≥ 24, npm ≥ 11, Docker (Engine + Compose). A local Postgres already holds host port `5432`, so this project's container maps to host **`5433`** — nothing of yours is touched.
+
+```bash
+# from bank-simulator/ — first-time setup
+docker compose up -d postgres                 # start DB (host 5433 → container 5432)
+cd apps/backend && npm install
+npx prisma migrate deploy                     # apply migrations
+npm run prisma:seed                           # load fabricated demo data (idempotent)
+cd ../frontend && npm install
+```
+
+```bash
+# day-to-day (from bank-simulator/)
+npm run dev:backend                           # NestJS API, hot reload  :3001
+npm run dev:frontend                          # Next.js UI, hot reload  :3000
+npm run db:seed                               # reload demo data
+npm run up   /  npm run down                  # docker compose up -d / down
+
+# inside apps/backend/
+npm run prisma:studio                         # browse the DB in a GUI
+npm run build                                 # compile check
+npm run prisma:migrate                        # create/apply a dev migration
+```
+
+> **Windows note:** the running dev server locks the Prisma query-engine DLL. To run `prisma generate` or a migration, stop the backend first, run it, then restart.
+
+**Ports:** `3000` frontend · `3001` backend (`/api`, Swagger at `/api/docs`) · `5433` Postgres (host).
+
+## 8. Demo credentials
+
+All data is **fabricated** (spec §14 — no real customer data). Full details in [`../WALKTHROUGH.md`](../WALKTHROUGH.md).
+
+| Field | Value |
+|---|---|
+| Customer Id | `83840226` |
+| User Id | `TARAKESH` · `PRIYA_A` · `ROHIT_V` |
+| Login Password | `Finspark@123` |
+| Transaction Password | `Txn@12345` |
+
+**OTP delivery:** SMTP is optional. With no credentials configured, OTP codes are **printed to the backend console** (`[DEV MAIL]` — the 6-digit code is on the line *after* "Your one-time password is:"). For real email, fill `SMTP_*` / `EMAIL_*` in `apps/backend/.env` with a Zoho **app-specific password**. Secrets live only in the git-ignored `.env`; `.env.example` holds empty key names.
+
+## 9. Repo layout
+
+```
+bank-simulator/
+├── apps/
+│   ├── backend/                 NestJS 11 + Prisma + PostgreSQL
+│   │   ├── prisma/              schema.prisma · migrations · seed.ts
+│   │   └── src/
+│   │       ├── auth/  recovery/  otp/          login, lock, password & OTP flows
+│   │       ├── accounts/  ledger/              balances + double-entry postings
+│   │       ├── beneficiaries/                  payee lifecycle + name-fetch
+│   │       ├── payments/                       initiate → confirm → submit
+│   │       ├── fraud/                           gateway + Stub/Heuristic scorers
+│   │       ├── disputes/  analyst/  dashboard/  cases, reviews, live feed
+│   │       ├── mailer/  common/  prisma/        infra: SMTP, env, DB client
+│   │       └── app.module.ts  main.ts
+│   └── frontend/                Next.js 16 App Router
+│       ├── app/(app)/…          authenticated screens (route group)
+│       ├── app/login  …/unlock  public auth screens
+│       ├── components/          ui/ primitives · RiskMeter · PageHeader
+│       └── lib/                 api · auth-store · format · excel · types
+├── docker-compose.yml           postgres · backend · frontend
+├── BANK_SIMULATOR_SPEC.md       full functional spec
+└── README.md                    ← this file
+```
+
+## 10. Phase 2 — the ML seam (out of scope here)
+
+The `sentinel_fusion_ai` engine (a separate project in this repo) plugs in by implementing the `Scorer` interface as an `HttpScorer` that POSTs the unified event to the FastAPI `/score` endpoint and maps the response to a `RiskVerdict`. The decision engine, ledger, OTP challenge, holds, freezes, and the analyst feed all already consume that verdict — so turning on real ML is a one-provider swap in `fraud.module.ts`, with **no changes to any banking flow**.
