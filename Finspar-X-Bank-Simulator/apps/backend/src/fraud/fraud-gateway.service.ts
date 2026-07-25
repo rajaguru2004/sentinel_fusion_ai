@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { RiskLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SCORER, type Scorer, type UnifiedEvent, type RiskVerdict } from './scorer.interface';
+import { RiskAlertService } from './risk-alert.service';
 import { resolveGeo } from './geoip';
 
 export type Decision = 'EXECUTE' | 'CHALLENGE' | 'HOLD' | 'BLOCK';
@@ -28,6 +29,7 @@ export class FraudGateway {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(SCORER) private readonly scorer: Scorer,
+    private readonly alerts: RiskAlertService,
   ) {}
 
   private decide(level: RiskLevel): Decision {
@@ -66,6 +68,10 @@ export class FraudGateway {
         deviceFingerprint: ctx.deviceFingerprint,
       },
     });
+
+    // One qualifying event -> one mail. Not awaited: SMTP must never sit on the
+    // money path, and notify() swallows its own failures.
+    this.alerts.notify(event, verdict, decision, ctx);
 
     return { ...verdict, decision };
   }

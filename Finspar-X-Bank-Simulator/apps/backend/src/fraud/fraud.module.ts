@@ -7,6 +7,7 @@ import { StubScorer } from './stub-scorer';
 import { SentinelIngest } from './sentinel-ingest';
 import { SentinelFeedback } from './sentinel-feedback';
 import { SentinelWarmup } from './sentinel-warmup';
+import { RiskAlertService } from './risk-alert.service';
 import { SCORER, type Scorer } from './scorer.interface';
 
 /**
@@ -25,6 +26,7 @@ import { SCORER, type Scorer } from './scorer.interface';
     SentinelIngest,
     SentinelFeedback,
     SentinelWarmup,
+    RiskAlertService,
     {
       provide: SCORER,
       inject: [HttpScorer, HeuristicScorer],
@@ -38,6 +40,6 @@ import { SCORER, type Scorer } from './scorer.interface';
       },
     },
   ],
-  exports: [FraudGateway, SentinelIngest, SentinelFeedback],
+  exports: [FraudGateway, SentinelIngest, SentinelFeedback, RiskAlertService],
 })
 export class FraudModule {}
