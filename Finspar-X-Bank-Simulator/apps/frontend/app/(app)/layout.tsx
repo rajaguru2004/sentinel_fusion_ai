@@ -11,17 +11,35 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { token, user } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
-  // Auth guard — zustand persists to localStorage; wait a tick for hydration.
+  // Wait for zustand's persist middleware to finish reading localStorage.
+  //
+  // Without this the guard below runs on the very first client render, when
+  // `token` is still null because rehydration has not happened yet, and
+  // immediately redirects to /login. In-app navigation hides the bug (the store
+  // is already in memory), but any FULL page load — a deep link, a refresh, or
+  // Playwright's page.goto — bounced the user to the login screen even with a
+  // perfectly valid session.
   useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+  }, []);
+
+  // Auth guard — only meaningful once the persisted session has been restored.
+  useEffect(() => {
+    if (!hydrated) return;
     if (!token || !user) {
       router.replace('/login');
     } else {
       setReady(true);
     }
-  }, [token, user, router]);
+  }, [hydrated, token, user, router]);
 
-  if (!ready) return null;
+  if (!hydrated || !ready) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">

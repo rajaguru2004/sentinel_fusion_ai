@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/Input';
 import { Captcha } from '@/components/auth/Captcha';
 import { VirtualKeyboard } from '@/components/auth/VirtualKeyboard';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { DemoTestPanel } from '@/components/demo/DemoTestPanel';
 import { api, apiError } from '@/lib/api';
 import { useAuthStore, type AuthUser } from '@/lib/auth-store';
 
@@ -233,6 +234,8 @@ export default function LoginPage() {
           <span className="tabular">TARAKESH</span>, Password{' '}
           <span className="tabular">Finspark@123</span>
         </p>
+        {/* Demo-only. Self-hides when the backend runner is not mounted. */}
+        {process.env.NEXT_PUBLIC_DEMO_TEST_RUNNER === 'true' && <DemoTestPanel />}
       </main>
     </div>
   );

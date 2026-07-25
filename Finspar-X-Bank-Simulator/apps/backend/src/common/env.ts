@@ -84,4 +84,14 @@ export const env = {
       return optional('GEO_ALLOW_MOCK_COUNTRY', 'false') === 'true';
     },
   },
+  demo: {
+    // DEMO ONLY. Mounts /api/demo-tests/*, which spawns Playwright on request
+    // for the login-page test panel. The routes are unauthenticated (the panel
+    // is pre-auth and EventSource cannot send headers), so the flag, the fixed
+    // spec allowlist and argv-array exec are the only things standing between a
+    // caller and a spawned process. NEVER enable outside a demo machine.
+    get testRunnerEnabled(): boolean {
+      return optional('DEMO_TEST_RUNNER', 'false') === 'true';
+    },
+  },
 };

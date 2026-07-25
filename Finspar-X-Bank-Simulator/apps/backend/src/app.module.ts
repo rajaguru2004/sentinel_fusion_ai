@@ -12,6 +12,8 @@ import { FraudModule } from './fraud/fraud.module';
 import { PaymentsModule } from './payments/payments.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { AnalystModule } from './analyst/analyst.module';
+import { SentinelModule } from './sentinel/sentinel.module';
+import { DemoTestsModule } from './demo-tests/demo-tests.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -29,6 +31,12 @@ import { AppController } from './app.controller';
     PaymentsModule,
     DisputesModule,
     AnalystModule,
+    // Browser-facing proxy to the model — the Sentinel Console needs it because
+    // the FastAPI service mounts no CORS middleware.
+    SentinelModule,
+    // Playwright runner for the login-page demo panel. Only mounts when
+    // DEMO_TEST_RUNNER=true; otherwise this contributes no routes at all.
+    DemoTestsModule.register(),
   ],
   controllers: [AppController],
   providers: [],

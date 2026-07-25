@@ -8,6 +8,7 @@ import {
   KeyRound,
   ShieldAlert,
   ShieldCheck,
+  Radar,
 } from 'lucide-react';
 
 export interface NavChild {
@@ -65,4 +66,8 @@ export const NAV: NavItem[] = [
     ],
   },
   { label: 'Analyst Dashboard', href: '/analyst', icon: ShieldCheck },
+  // The Intrusion and Future-Proofing watchers have no banking flow to ride on
+  // (the bank emits only financial/behaviour events), so they get their own
+  // console alongside the Command Center fusion view.
+  { label: 'Sentinel Console', href: '/sentinel', icon: Radar },
 ];

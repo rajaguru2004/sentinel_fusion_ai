@@ -7,6 +7,14 @@
 > these demos hands-free — every step lists concrete actions, selectors, inputs,
 > and expected outcomes.
 
+> ⚠️ **Read [docs/sentinel-demo-walkthrough.md](docs/sentinel-demo-walkthrough.md)
+> before presenting.** That document covers the Sentinel Console screens, the
+> login-page test runner, and the Playwright suite — and it records what the
+> models were *measured* to do. Several expected outcomes below are wrong against
+> the current bundle: the drain in §6 is BLOCKED rather than HELD, and the
+> contrast beats in §7.3, §8.4 and §9.4 do not reproduce. Corrections are listed
+> in §10 of that walkthrough.
+
 ---
 
 ## 0. The 30-second opener (say this first)
