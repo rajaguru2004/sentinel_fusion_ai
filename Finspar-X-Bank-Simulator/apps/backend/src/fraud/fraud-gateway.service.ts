@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SCORER, type Scorer, type UnifiedEvent, type RiskVerdict } from './scorer.interface';
 import { RiskAlertService } from './risk-alert.service';
 import { resolveGeo } from './geoip';
+import { env } from '../common/env';
 
 export type Decision = 'EXECUTE' | 'CHALLENGE' | 'HOLD' | 'BLOCK';
 
@@ -50,7 +51,13 @@ export class FraudGateway {
     event: UnifiedEvent,
     ctx: { userId?: string; paymentId?: string; ip?: string; deviceFingerprint?: string },
   ): Promise<Assessment> {
-    const verdict = await this.scorer.score(event);
+    const mlVerdict = await this.scorer.score(event);
+    // Post-model policy: foreign-country requests are floored to at least
+    // MEDIUM risk regardless of the ML score. This is an explicit bank rule,
+    // not a model feature — country signal is too weak in the current bundles
+    // to move the score on its own (see feature_spec.py:161 and the probe
+    // results in tests/specs/02-habits-watcher.spec.ts).
+    const verdict = applyCountryPolicy(event, mlVerdict);
     const decision = this.decide(verdict.riskLevel);
 
     await this.prisma.fraudEvent.create({
@@ -192,6 +199,45 @@ export class FraudGateway {
       geoLon: geo.lon,
     };
   }
+}
+
+// ---------------------------------------------------------------- policy ----
+
+/** Risk-level ordering — higher index = higher risk. */
+const LEVEL_ORDER: RiskLevel[] = [
+  RiskLevel.LOW,
+  RiskLevel.MEDIUM,
+  RiskLevel.HIGH,
+  RiskLevel.CRITICAL,
+];
+
+function maxLevel(a: RiskLevel, b: RiskLevel): RiskLevel {
+  return LEVEL_ORDER.indexOf(a) >= LEVEL_ORDER.indexOf(b) ? a : b;
+}
+
+/**
+ * Gateway policy: floor the verdict to MEDIUM when the event's country is
+ * outside the bank's allowed-country list (env.geo.allowedCountries).
+ *
+ * Only escalates — never downgrades a model HIGH or CRITICAL verdict.
+ * Appends a human-readable reason and a `p_country_policy` model-score key
+ * so the analyst feed shows why the decision was elevated.
+ */
+export function applyCountryPolicy(event: UnifiedEvent, verdict: RiskVerdict): RiskVerdict {
+  const country = event.country;
+  if (!country) return verdict; // no geo info — policy can't fire
+  if (env.geo.allowedCountries.has(country)) return verdict; // home market — pass through
+
+  const policyLevel = RiskLevel.MEDIUM;
+  const floored = maxLevel(verdict.riskLevel, policyLevel);
+  const reason = `Login/payment from high-risk country: ${country}`;
+
+  return {
+    ...verdict,
+    riskLevel: floored,
+    reasons: verdict.reasons.includes(reason) ? verdict.reasons : [...verdict.reasons, reason],
+    modelScores: { ...(verdict.modelScores ?? {}), p_country_policy: 0.5 },
+  };
 }
 
 const FREE_EMAIL_DOMAINS = new Set([

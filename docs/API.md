@@ -292,6 +292,8 @@ on real signal instead of empty history.
 | `degradation` | object | Per-group breakdown — see below |
 | `explanation` | object \| null | Only with `?explain=true` |
 | `threat_graph` | object \| null | Only with `?include_graph=true` or `/graph/generate` |
+| `counterfactuals` | array \| null | Only with `?counterfactual=true` — ranked counterfactual recommendations |
+
 
 #### `degradation` (new in v2)
 

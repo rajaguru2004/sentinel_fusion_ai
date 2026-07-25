@@ -119,6 +119,21 @@ export const env = {
     get allowMockCountry(): boolean {
       return optional('GEO_ALLOW_MOCK_COUNTRY', 'false') === 'true';
     },
+    /**
+     * Countries considered the bank's home market. Requests from any other
+     * country trigger the gateway policy rule (floor to CHALLENGE) regardless
+     * of what the ML model scored. Comma-separated ISO alpha-2 codes.
+     * Default: IN (India-only bank).
+     * Example: GEO_ALLOWED_COUNTRIES=IN,SG,AE
+     */
+    get allowedCountries(): Set<string> {
+      return new Set(
+        optional('GEO_ALLOWED_COUNTRIES', 'IN')
+          .split(',')
+          .map((c) => c.trim().toUpperCase())
+          .filter(Boolean),
+      );
+    },
   },
   demo: {
     // DEMO ONLY. Mounts /api/demo-tests/*, which spawns Playwright on request
