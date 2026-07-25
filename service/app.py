@@ -17,7 +17,8 @@ from ml.feature_spec import CONTRACT_HASH
 
 from .explain import Explainer
 from .feature_service import FeatureService
-from .routers import feedback, health, ingest, metrics, score, stress
+from .graph.store import InMemoryThreatGraphStore, RedisThreatGraphStore
+from .routers import feedback, graph, health, ingest, metrics, score, stress
 from .scorer_service import ScorerService
 from .settings import Settings, get_settings
 from .store import FeatureStore, InMemoryStore, RedisFeatureStore
@@ -72,6 +73,13 @@ async def lifespan(app: FastAPI):
         app.state.store, timeout_ms=settings.store_timeout_ms,
         breaker_fail_threshold=settings.breaker_fail_threshold,
         breaker_reset_s=settings.breaker_reset_s)
+    if settings.redis_url:
+        import redis.asyncio as aioredis
+        r_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+        app.state.graph_store = RedisThreatGraphStore(r_client)
+    else:
+        app.state.graph_store = InMemoryThreatGraphStore()
+
     try:
         yield
     finally:
@@ -91,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router)
     app.include_router(feedback.router)
     app.include_router(stress.router)
+    app.include_router(graph.router)
     return app
 
 

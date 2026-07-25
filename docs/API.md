@@ -159,6 +159,9 @@ rejected with 422.
 | POST | `/feedback` | ✔ | Confirmed label for one event |
 | POST | `/feedback/batch` | ✔ | Bulk adjudication backfill |
 | GET  | `/metrics` | — | Prometheus metrics |
+| POST | `/graph/generate` | ✔ | Generate visual attack threat graph |
+| GET  | `/graph/incident/{incident_id}` | ✔ | Retrieve cached/stored incident threat graph |
+| GET/POST | `/stress-test/stream` | ✔ | Stream real-time AI model stress test progress |
 
 ---
 
@@ -286,6 +289,7 @@ on real signal instead of empty history.
 | `degraded` | boolean | **Deprecated** mirror of `degradation.degraded` |
 | `degradation` | object | Per-group breakdown — see below |
 | `explanation` | object \| null | Only with `?explain=true` |
+| `threat_graph` | object \| null | Only with `?include_graph=true` or `/graph/generate` |
 
 #### `degradation` (new in v2)
 

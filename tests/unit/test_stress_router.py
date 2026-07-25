@@ -6,8 +6,7 @@ from fastapi.testclient import TestClient
 
 from service.app import create_app
 
-KEY = "sentinel-demo-key-2026"
-H = {"X-API-Key": KEY}
+from service.settings import get_settings
 
 
 @pytest.fixture
@@ -20,9 +19,11 @@ def client(mini_artifacts, monkeypatch):
         yield c
 
 
-
 def test_stress_test_stream_endpoint(client):
-    response = client.get("/stress-test/stream", headers=H)
+    settings = get_settings()
+    key = list(settings.api_key_map.values())[0] if settings.api_key_map else "sentinel-demo-key-2026"
+    headers = {"X-API-Key": key}
+    response = client.get("/stress-test/stream", headers=headers)
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
     assert "data: " in response.text
