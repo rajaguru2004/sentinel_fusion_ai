@@ -49,6 +49,13 @@ async function bootstrap(): Promise<void> {
   // The JWT now travels in an httpOnly cookie (§4); this parses it for the guard.
   app.use(cookieParser());
 
+  // Express defaults to a 100 KB JSON body, which the Model Benchmark screen
+  // exceeds: a 1000-event `/score/batch` payload is ~400 KB. Raised to 1 MB —
+  // enough for the model's own max_batch of 1000 with headroom, and still a sane
+  // cap for a banking API. Every other route is DTO-validated with
+  // `forbidNonWhitelisted`, so a larger ceiling does not widen their input surface.
+  app.useBodyParser('json', { limit: '1mb' });
+
   app.setGlobalPrefix('api');
   app.enableCors({
     origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',

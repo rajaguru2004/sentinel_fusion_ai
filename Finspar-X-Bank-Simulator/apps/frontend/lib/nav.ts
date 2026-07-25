@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Radar,
+  Gauge,
 } from 'lucide-react';
 
 export interface NavChild {
@@ -70,4 +71,5 @@ export const NAV: NavItem[] = [
   // (the bank emits only financial/behaviour events), so they get their own
   // console alongside the Command Center fusion view.
   { label: 'Sentinel Console', href: '/sentinel', icon: Radar },
+  { label: 'Model Benchmark', href: '/sentinel/benchmark', icon: Gauge },
 ];

@@ -28,6 +28,22 @@ export class SentinelController {
     return this.sentinel.score(event);
   }
 
+  /**
+   * Benchmark screen — counterfactual tab. Same index-signature reasoning as
+   * `score` above: a DTO would have the global ValidationPipe strip the
+   * domain-specific fields inside `event`.
+   */
+  @Post('counterfactual')
+  counterfactual(@Body() body: Record<string, unknown>) {
+    return this.sentinel.counterfactual(body);
+  }
+
+  /** Benchmark screen — batch tab. Returns model results plus measured timing. */
+  @Post('batch')
+  batch(@Body() body: Record<string, unknown>) {
+    return this.sentinel.batch(body);
+  }
+
   @Get('ready')
   ready() {
     return this.sentinel.ready();
