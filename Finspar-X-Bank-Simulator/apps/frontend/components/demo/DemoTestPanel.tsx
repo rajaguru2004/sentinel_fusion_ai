@@ -26,14 +26,10 @@ interface SpecButton {
   label: string;
 }
 
-/** Fallback list if /specs is unreachable — keeps the panel useful. */
+/** Fallback list if /specs is unreachable — keeps the panel useful.
+ *  Scoped to the Money Watcher (login -> payment) only. */
 const FALLBACK: SpecButton[] = [
   { id: 'money', label: 'Money Watcher' },
-  { id: 'habits', label: 'Habits Watcher' },
-  { id: 'intrusion', label: 'Intrusion Watcher' },
-  { id: 'quantum', label: 'Future-Proofing Watcher' },
-  { id: 'command-center', label: 'Command Center' },
-  { id: 'all', label: 'All watchers' },
 ];
 
 export function DemoTestPanel() {
@@ -176,24 +172,14 @@ export function DemoTestPanel() {
           ))}
       </div>
 
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          disabled={running}
-          onClick={() => run('all')}
-          data-testid="run-all"
-          className="flex-1"
-        >
-          <Play className="h-3.5 w-3.5" />
-          Test all scripts
-        </Button>
-        {running && (
+      {running && (
+        <div className="flex gap-2">
           <Button size="sm" variant="danger" onClick={cancel} data-testid="run-cancel">
             <Square className="h-3.5 w-3.5" />
             Cancel
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {(lines.length > 0 || status !== 'idle') && (
         <div className="space-y-2">

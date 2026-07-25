@@ -24,24 +24,16 @@ import { Subject } from 'rxjs';
  * It must never be enabled outside a demo machine.
  */
 
+// Demo panel is scoped to the Money Watcher only — the login → payment flow.
+// (The other watchers are demoed via the Sentinel Console / terminal specs.)
 export const SPEC_MAP = {
   money: 'tests/specs/01-money-watcher.spec.ts',
-  habits: 'tests/specs/02-habits-watcher.spec.ts',
-  intrusion: 'tests/specs/03-intrusion-watcher.spec.ts',
-  quantum: 'tests/specs/04-quantum-watcher.spec.ts',
-  'command-center': 'tests/specs/05-command-center.spec.ts',
-  all: null, // whole suite
 } as const;
 
 export type SpecId = keyof typeof SPEC_MAP;
 
 export const SPEC_LABELS: Record<SpecId, string> = {
   money: 'Money Watcher',
-  habits: 'Habits Watcher',
-  intrusion: 'Intrusion Watcher',
-  quantum: 'Future-Proofing Watcher',
-  'command-center': 'Command Center',
-  all: 'All watchers',
 };
 
 export type RunEvent =
@@ -121,9 +113,14 @@ export class DemoTestsService {
     }
 
     const file = SPEC_MAP[specId];
-    // Fixed argv. Nothing from the request reaches this array except via the
-    // SPEC_MAP lookup above, which can only yield a constant.
-    const args = ['playwright', 'test', ...(file ? [file] : []), '--reporter=list'];
+    // Run the LOCAL Playwright CLI via node — NOT `npx`. On Windows
+    // `execFile('npx', {shell:false})` fails with ENOENT (npx is a .cmd and
+    // cannot be spawned without a shell), which killed every run. Invoking
+    // node on the resolved cli.js is cross-platform and keeps shell:false.
+    // Nothing from the request reaches the argv except via the SPEC_MAP lookup
+    // above, which can only yield a constant.
+    const cli = path.join(this.simulatorRoot, 'node_modules', 'playwright', 'cli.js');
+    const args = ['test', ...(file ? [file] : []), '--reporter=list'];
 
     const run: Run = {
       id: randomUUID(),
@@ -137,10 +134,10 @@ export class DemoTestsService {
     this.runs.set(run.id, run);
     this.activeRunId = run.id;
 
-    this.push(run, `$ npx ${args.join(' ')}`);
+    this.push(run, `$ node node_modules/playwright/cli.js ${args.join(' ')}`);
     this.push(run, `(cwd: ${this.simulatorRoot})`);
 
-    const child = execFile('npx', args, {
+    const child = execFile(process.execPath, [cli, ...args], {
       cwd: this.simulatorRoot,
       shell: false,
       maxBuffer: 32 * 1024 * 1024,
