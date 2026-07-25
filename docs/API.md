@@ -152,8 +152,9 @@ rejected with 422.
 |---|---|---|---|
 | GET  | `/health` | — | Liveness |
 | GET  | `/ready` | — | Readiness + contract hash + breaker state |
-| POST | `/score` | ✔ | Score one event |
+| POST | `/score` | ✔ | Score one event (`?explain=true`, `?counterfactual=true`) |
 | POST | `/score/batch` | ✔ | Score up to `max_batch` events |
+| POST | `/score/counterfactual` | ✔ | AI Counterfactual Analysis & Recommendations |
 | POST | `/ingest` | ✔ | Build history **without** scoring |
 | POST | `/ingest/batch` | ✔ | Bulk context events |
 | POST | `/feedback` | ✔ | Confirmed label for one event |
@@ -162,6 +163,7 @@ rejected with 422.
 | POST | `/graph/generate` | ✔ | Generate visual attack threat graph |
 | GET  | `/graph/incident/{incident_id}` | ✔ | Retrieve cached/stored incident threat graph |
 | GET/POST | `/stress-test/stream` | ✔ | Stream real-time AI model stress test progress |
+
 
 ---
 
@@ -482,7 +484,110 @@ Batch form takes `{"items":[ ... ]}` and returns:
 
 ---
 
-### 5.8 `GET /metrics`
+### 5.8 `POST /score/counterfactual`
+
+AI Counterfactual Analysis & Recommendation Engine. Probes model decision boundaries to generate minimal, actionable feature adjustments that bring event risk level down to a target state (`low` or `medium`).
+
+#### Headers
+
+| Header | Type | Value / Description |
+|---|---|---|
+| `X-API-Key` | string | **Required**. API key for authentication |
+| `Content-Type` | string | `application/json` |
+
+#### Request Body
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `event` | object | **Yes** | — | Unified event schema object (same as `POST /score`) |
+| `target_risk_level` | enum | No | `"low"` | Target risk level (`low`, `medium`, `high`) |
+| `max_recommendations` | int | No | `3` | Maximum number of ranked recommendations to return |
+
+#### Example Request
+
+```http
+POST /score/counterfactual HTTP/1.1
+Host: localhost:8000
+X-API-Key: sentinel-demo-key-2026
+Content-Type: application/json
+
+{
+  "event": {
+    "event_id": "cf-txn-901",
+    "event_domain": "financial",
+    "event_type": "card_txn",
+    "event_time": "2026-07-25T20:00:00Z",
+    "user_id": "cust-9002",
+    "amount": 50000.0,
+    "balance_before": 55000.0,
+    "balance_after": 5000.0,
+    "counterparty_is_new": 1,
+    "country": "US"
+  },
+  "target_risk_level": "low",
+  "max_recommendations": 3
+}
+```
+
+#### Example Response (HTTP 200 OK)
+
+```json
+{
+  "event_id": "cf-txn-901",
+  "original_risk_score": 0.8842,
+  "original_risk_level": "critical",
+  "target_risk_level": "low",
+  "model": "fraud_payment",
+  "counterfactuals": [
+    {
+      "rank": 1,
+      "predicted_risk_score": 0.1245,
+      "predicted_risk_level": "low",
+      "risk_reduction_pct": 85.92,
+      "confidence": 0.8755,
+      "actionability_score": 0.9,
+      "changes": [
+        {
+          "feature": "counterparty_is_new",
+          "original_value": 1,
+          "recommended_value": 0,
+          "delta": -1.0,
+          "unit": null,
+          "change_description": "Use an existing trusted beneficiary instead of a newly added one"
+        }
+      ],
+      "explanation": "Transactions to established beneficiaries carry significantly lower fraud probability. This lowers the risk score from 0.8842 to 0.1245 (LOW risk)."
+    },
+    {
+      "rank": 2,
+      "predicted_risk_score": 0.2104,
+      "predicted_risk_level": "low",
+      "risk_reduction_pct": 76.2,
+      "confidence": 0.7896,
+      "actionability_score": 0.85,
+      "changes": [
+        {
+          "feature": "amount",
+          "original_value": 50000.0,
+          "recommended_value": 12500.0,
+          "delta": -37500.0,
+          "unit": "currency",
+          "change_description": "Reduce transaction amount from 50000.0 to 12500.0"
+        }
+      ],
+      "explanation": "Lowering transaction amount brings it within customer's normal baseline spend. This lowers the risk score from 0.8842 to 0.2104 (LOW risk)."
+    }
+  ]
+}
+```
+
+> **Query Flag on `/score` Endpoint:**
+> `POST /score?counterfactual=true` can also be called directly on single events or batch events to embed `counterfactuals` array inside `ScoreOut`.
+
+---
+
+### 5.9 `GET /metrics`
+
 
 Prometheus exposition. Series:
 
@@ -568,6 +673,13 @@ curl -sS http://localhost:8000/score -H "X-API-Key: $KEY" \
 # With plain-language reasons
 curl -sS "http://localhost:8000/score?explain=true" -H "X-API-Key: $KEY" \
   -H "Content-Type: application/json" -d '{ ...event... }'
+
+# AI Counterfactual Recommendations
+curl -sS http://localhost:8000/score/counterfactual -H "X-API-Key: $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"event":{"event_id":"cf-1","event_domain":"financial","event_type":"card_txn",
+       "event_time":"2026-07-25T20:00:00Z","user_id":"cust-1","amount":50000.0,
+       "counterparty_is_new":1},"target_risk_level":"low"}'
 
 # Feedback
 curl -sS http://localhost:8000/feedback -H "X-API-Key: $KEY" \

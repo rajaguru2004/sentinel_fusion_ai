@@ -28,7 +28,8 @@ def _guard_clock(ev_dict: dict[str, Any]) -> None:
 
 
 async def _score_events(request: Request, events: list[EventIn],
-                        explain: bool, include_graph: bool = False) -> list[ScoreOut]:
+                        explain: bool, include_graph: bool = False,
+                        counterfactual: bool = False) -> list[ScoreOut]:
     st = request.app.state
     ev_dicts = [to_event_dict(e) for e in events]
     for d in ev_dicts:
@@ -49,7 +50,7 @@ async def _score_events(request: Request, events: list[EventIn],
         row["degraded"] = detail.degraded          # legacy mirror
         expl_raw = None
         expl = None
-        if (explain or include_graph) and settings.enable_explain and row["scored"]:
+        if (explain or include_graph or counterfactual) and settings.enable_explain and row["scored"]:
             expl_raw = st.explainer.explain(merged[i])
             if explain and expl_raw:
                 expl = Explanation(**expl_raw)
@@ -64,7 +65,16 @@ async def _score_events(request: Request, events: list[EventIn],
             if hasattr(st, "graph_store") and st.graph_store:
                 await st.graph_store.save_graph(t_graph)
 
-        so = ScoreOut(**row, explanation=expl, threat_graph=t_graph)
+        c_recs = None
+        if counterfactual and hasattr(st, "counterfactual_engine") and st.counterfactual_engine and row["scored"]:
+            cf_res = await st.counterfactual_engine.generate_counterfactuals(
+                event_dict=ev_dicts[i],
+                target_risk_level="low",
+                max_recommendations=3,
+            )
+            c_recs = cf_res.counterfactuals
+
+        so = ScoreOut(**row, explanation=expl, threat_graph=t_graph, counterfactuals=c_recs)
         out.append(so)
         metrics.SCORED_TOTAL.labels(
             model=so.model or "none", risk_level=so.risk_level).inc()
@@ -81,12 +91,13 @@ async def _score_events(request: Request, events: list[EventIn],
 @router.post("/score", response_model=ScoreOut)
 async def score(request: Request, event: EventIn,
                 explain: bool = Query(default=False),
-                include_graph: bool = Query(default=False)) -> ScoreOut:
+                include_graph: bool = Query(default=False),
+                counterfactual: bool = Query(default=False)) -> ScoreOut:
     if explain and not get_settings().enable_explain:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
                             detail="explanations disabled")
     t0 = time.perf_counter()
-    result = (await _score_events(request, [event], explain, include_graph))[0]
+    result = (await _score_events(request, [event], explain, include_graph, counterfactual))[0]
     metrics.SCORE_LATENCY.labels(endpoint="score").observe(time.perf_counter() - t0)
     return result
 
@@ -94,15 +105,17 @@ async def score(request: Request, event: EventIn,
 @router.post("/score/batch", response_model=BatchOut)
 async def score_batch(request: Request, body: BatchIn,
                       explain: bool = Query(default=False),
-                      include_graph: bool = Query(default=False)) -> BatchOut:
+                      include_graph: bool = Query(default=False),
+                      counterfactual: bool = Query(default=False)) -> BatchOut:
     settings = get_settings()
     if len(body.events) > settings.max_batch:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"batch exceeds max_batch={settings.max_batch}")
     t0 = time.perf_counter()
-    results = await _score_events(request, body.events, explain, include_graph)
+    results = await _score_events(request, body.events, explain, include_graph, counterfactual)
     metrics.SCORE_LATENCY.labels(endpoint="score_batch").observe(
         time.perf_counter() - t0)
     return BatchOut(results=results)
+
 

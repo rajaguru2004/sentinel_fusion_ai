@@ -15,28 +15,18 @@ from fastapi import FastAPI
 
 from ml.feature_spec import CONTRACT_HASH
 
+from .counterfactual import CounterfactualEngine
 from .explain import Explainer
 from .feature_service import FeatureService
 from .graph.store import InMemoryThreatGraphStore, RedisThreatGraphStore
-from .routers import feedback, graph, health, ingest, metrics, score, stress
+from .routers import counterfactual, feedback, graph, health, ingest, metrics, score, stress
 from .scorer_service import ScorerService
 from .settings import Settings, get_settings
 from .store import FeatureStore, InMemoryStore, RedisFeatureStore
 
 
 def check_contract(scorer: ScorerService) -> None:
-    """Refuse to serve a model trained against a different feature contract.
-
-    This is what makes "training and serving share one contract" enforceable
-    rather than aspirational: `ml/feature_spec.py` fingerprints the canonical
-    columns, engineered features, per-model inputs and routing, and every bundle
-    records the hash it was trained under. Editing a feature list without
-    retraining now fails loudly at startup instead of silently mis-scoring every
-    request.
-
-    Bundles predating the hash are allowed through with a warning so an older
-    artifact directory can still be rolled back to.
-    """
+    """Refuse to serve a model trained against a different feature contract."""
     stale = {k: b.get("contract_hash") for k, b in scorer.scorer.bundles.items()
              if b.get("contract_hash") not in (None, CONTRACT_HASH)}
     if stale:
@@ -68,6 +58,7 @@ async def lifespan(app: FastAPI):
     check_contract(app.state.scorer)
     app.state.contract_hash = CONTRACT_HASH
     app.state.explainer = Explainer(app.state.scorer.scorer, top_k=settings.explain_top_k)
+    app.state.counterfactual_engine = CounterfactualEngine(app.state)
     app.state.store = build_store(settings)
     app.state.features = FeatureService(
         app.state.store, timeout_ms=settings.store_timeout_ms,
@@ -96,11 +87,13 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(metrics.router)
     app.include_router(score.router)
+    app.include_router(counterfactual.router)
     app.include_router(ingest.router)
     app.include_router(feedback.router)
     app.include_router(stress.router)
     app.include_router(graph.router)
     return app
+
 
 
 app = create_app()

@@ -8,7 +8,7 @@ the columns asserted by tests/integration/test_scorer_contract.py.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -144,6 +144,42 @@ class FeatureAttribution(BaseModel):
     shap: float
 
 
+class FeatureChange(BaseModel):
+    feature: str
+    original_value: Any = None
+    recommended_value: Any = None
+    delta: float | None = None
+    unit: str | None = None
+    change_description: str
+
+
+class CounterfactualRecommendation(BaseModel):
+    rank: int
+    predicted_risk_score: float
+    predicted_risk_level: RiskLevel
+    risk_reduction_pct: float
+    confidence: float
+    actionability_score: float
+    changes: list[FeatureChange]
+    explanation: str
+
+
+class CounterfactualRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event: EventIn
+    target_risk_level: RiskLevel = "low"
+    max_recommendations: int = Field(default=3, ge=1, le=10)
+
+
+class CounterfactualResponse(BaseModel):
+    event_id: str
+    original_risk_score: float
+    original_risk_level: RiskLevel
+    target_risk_level: RiskLevel
+    model: str | None
+    counterfactuals: list[CounterfactualRecommendation] = []
+
+
 class ScoreOut(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
@@ -161,6 +197,7 @@ class ScoreOut(BaseModel):
     degradation: DegradedDetail = DegradedDetail()
     explanation: Explanation | None = None
     threat_graph: ThreatGraphResponse | None = None
+    counterfactuals: list[CounterfactualRecommendation] | None = None
 
 
 class BatchIn(BaseModel):
