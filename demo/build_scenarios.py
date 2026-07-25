@@ -79,7 +79,7 @@ def main() -> None:
     b = joblib.load(MODELS / "fraud_payment_bundle.joblib")
     cand = df[(split == "test") & lab1 & (df["event_domain"] == "financial")
               & df["amount"].notna() & (df["amount"] > 1000)]
-    Xc, _ = build_matrix(cand, "fraud", CategoryEncoder(b["encoder_mapping"]))
+    Xc, _ = build_matrix(cand, "fraud_payment", CategoryEncoder(b["encoder_mapping"]))
     scores = b["model"].predict_proba(Xc[b["features"]])[:, 1]
     wire = cand.iloc[int(scores.argmax())]
     print(f"wire slot: fraud p={scores.max():.3f} amount={wire['amount']:.0f}")

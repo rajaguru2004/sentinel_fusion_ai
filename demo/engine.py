@@ -17,12 +17,17 @@ import numpy as np
 import pandas as pd
 
 from ml.config import DOMAIN_OF_MODEL, FUSION_WEIGHTS, MODELS, ROOT
+from ml.config import route as route_model
 from ml.features import CategoryEncoder, build_matrix, impute
 
 DEMO_DIR = Path(__file__).resolve().parent
 FEATURE_DOCS = ROOT / "reports" / "feature_documentation.json"
 
-MODEL_TITLES = {"fraud": "Fraud Detection", "cyber": "Cyber Threat Detection",
+# v2: fraud split into two heads (payment vs application). Titles cover every
+# model key in DOMAIN_OF_MODEL so load()/render never KeyError on the new keys.
+MODEL_TITLES = {"fraud_payment": "Fraud Detection (Payments)",
+                "fraud_application": "Fraud Detection (Applications)",
+                "cyber": "Cyber Threat Detection",
                 "behaviour": "Behaviour Analytics", "quantum": "Quantum Risk"}
 
 # feature -> analyst-readable label (fallback: feature_documentation.json text)
@@ -44,6 +49,25 @@ NICE = {
     "f_hour": "Hour of day", "f_dayofweek": "Day of week",
     "f_is_weekend": "Weekend flag", "f_is_night": "Night-time flag (00-06 UTC)",
     "f_hour_sin": "Hour (cyclic sin)", "f_hour_cos": "Hour (cyclic cos)",
+    # v2 banking features
+    "f_counterparty_new": "First payment to this beneficiary",
+    "f_user_distinct_counterparties": "Number of known payees",
+    "f_merchant_category_novel": "First purchase in this category",
+    "f_user_txn_count_1h": "Payments in the last hour",
+    "f_balance_drain_ratio": "Share of balance removed",
+    "f_amount_vs_balance": "Amount vs available balance",
+    "f_balance_inconsistent": "Balance doesn't reconcile",
+    "f_geo_distance_km": "Distance to counterparty (km)",
+    "name_mismatch": "Payee name mismatch",
+    "counterparty_age_s": "Beneficiary age (seconds)",
+    "counterparty_is_new": "New beneficiary",
+    "balance_before": "Balance before", "balance_after": "Balance after",
+    "customer_age": "Customer age", "income": "Declared income",
+    "bank_txn_count_1h": "Bank velocity (last hour)",
+    "bank_amount_vs_user_mean": "Bank amount-vs-mean",
+    "bank_is_new_beneficiary": "Bank: new beneficiary",
+    "channel": "Channel", "payment_type": "Payment type",
+    "merchant_category": "Merchant category",
     "country": "Country", "q_key_exchange": "TLS key exchange",
     "q_cert_key_type": "Certificate key type", "q_data_class": "Data classification",
     "q_cert_age_days": "Certificate age (days)",
@@ -202,10 +226,11 @@ class DemoEngine:
         headlines = {e["event_id"]: e for e in meta["events"]}
         results: list[EventResult] = []
         domain_max: dict[str, float] = {}
-        model_of_domain = {v: k for k, v in DOMAIN_OF_MODEL.items()}
 
         for _, row in events.iterrows():
-            key = model_of_domain.get(row["event_domain"])
+            # Route on (domain, event_type): the financial domain now has two
+            # heads. Inverting DOMAIN_OF_MODEL silently dropped one of them.
+            key = route_model(row["event_domain"], row.get("event_type"))
             if key is None:
                 continue
             frame = row.to_frame().T

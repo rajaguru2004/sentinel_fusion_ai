@@ -11,15 +11,24 @@ import pandas as pd
 
 from ml.config import ROOT
 
-# The four specialists — how we introduce the models to a non-technical room.
+# The specialists — how we introduce the models to a non-technical room.
+# Keys are the real model keys in reports/ml/metrics_all.json (v2: two fraud heads).
 TEAM = {
-    "fraud": {
+    "fraud_payment": {
         "icon": "💳", "name": "The Money Watcher",
-        "tech": "Fraud Detection — XGBoost",
+        "tech": "Fraud Detection (Payments) — XGBoost",
         "what": "Watches every payment and transfer. Knows what a normal "
                 "payment looks like for each customer — size, timing, "
-                "destination — and raises a hand when money moves strangely.",
-        "catches": "stolen-card purchases, drained accounts, fake sellers",
+                "destination, who they usually pay — and raises a hand when "
+                "money moves strangely.",
+        "catches": "stolen-card purchases, drained accounts, new-payee scams",
+    },
+    "fraud_application": {
+        "icon": "📝", "name": "The New-Account Watcher",
+        "tech": "Fraud Detection (Applications) — XGBoost",
+        "what": "Watches new account and credit applications. Spots identities "
+                "and details that don't add up before an account is even opened.",
+        "catches": "application fraud, synthetic identities, mule accounts",
     },
     "cyber": {
         "icon": "🖥️", "name": "The Intrusion Watcher",
@@ -92,6 +101,22 @@ def explain_feature(feat: dict, row: pd.Series) -> str | None:
         case "f_amount_z_user" if up and val and val > 2:
             return (f"This transfer is about {val:.0f}× larger than anything "
                     f"this customer usually sends")
+        case "f_amount_ratio_mean" if up and val and val > 2:
+            return f"The amount is {val:.0f}× this customer's normal spend"
+        case ("f_counterparty_new" | "counterparty_is_new"
+              | "bank_is_new_beneficiary") if up and val == 1:
+            return "First ever payment to this beneficiary"
+        case "name_mismatch" if up and val == 1:
+            return "The payee name doesn't match the account holder"
+        case "counterparty_age_s" if up and val is not None and val < 3600:
+            mins = max(1, int(val // 60))
+            return f"The beneficiary was added just {mins} minute(s) before this payment"
+        case "f_user_txn_count_1h" | "bank_txn_count_1h" if up and val and val >= 2:
+            return f"{int(val)} payments from this customer in the last hour — a velocity spike"
+        case "f_balance_drain_ratio" if up and val and val >= 0.9:
+            return "This payment empties almost the entire balance"
+        case "f_merchant_category_novel" if up and val == 1:
+            return "First time this customer has spent in this category"
         case "f_user_new_country" if val == 1:
             where = f" ({country})" if pd.notna(country) else ""
             return f"First time this account has EVER been used from this country{where}"
@@ -161,11 +186,14 @@ def scoreboard() -> list[dict]:
                       f"{max(round(lat['single_row_ms']['p50']), 1)} thousandth(s) of a second"),
         })
     fusion = m["fusion"]["cross_domain_roc_auc"]
+    tested = m["fusion"].get("test_events_fused")
+    tested_str = (f"Tested on {tested:,} events the AI had never seen before"
+                  if tested else "Tested on held-out events the AI never saw")
     cards.append({
-        "icon": "🧠", "name": "The Command Center (all four combined)",
+        "icon": "🧠", "name": "The Command Center (all specialists combined)",
         "catch": (f"Given one threat and one normal event, it ranks the threat "
                   f"higher {round(fusion * 100)} times out of 100"),
-        "trust": "Tested on 306,556 events the AI had never seen before",
+        "trust": tested_str,
         "speed": "Combines all opinions in under a millisecond",
     })
     return cards
