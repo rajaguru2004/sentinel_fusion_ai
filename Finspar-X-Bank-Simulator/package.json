@@ -9,13 +9,28 @@
   ],
   "scripts": {
     "dev:backend": "npm run start:dev --workspace apps/backend",
+    "dev:backend:demo": "mkdir -p .artifacts && bash -c 'npm run start:dev --workspace apps/backend 2>&1 | tee .artifacts/backend.log'",
     "dev:frontend": "npm run dev --workspace apps/frontend",
     "db:migrate": "npm run prisma:migrate --workspace apps/backend",
     "db:seed": "npm run prisma:seed --workspace apps/backend",
     "up": "docker compose up -d",
-    "down": "docker compose down"
+    "down": "docker compose down",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --project=ui",
+    "e2e:api": "E2E_SKIP_BANK=1 playwright test --project=api",
+    "e2e:demo": "playwright test --grep @demo",
+    "e2e:headed": "playwright test --project=ui --headed",
+    "e2e:warm": "E2E_KEEP_FEATURE_STORE=1 playwright test",
+    "e2e:report": "playwright show-report .artifacts/html-report",
+    "e2e:install": "playwright install --with-deps chromium",
+    "e2e:env": "node scripts/print-demo-env.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
   }
 }

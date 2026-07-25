@@ -37,3 +37,8 @@ coverage/
 # training export output (generated corpus, can be large)
 exports/
 apps/backend/exports/
+
+# playwright — traces, videos, html report, tee'd backend log
+.artifacts/
+playwright-report/
+test-results/
