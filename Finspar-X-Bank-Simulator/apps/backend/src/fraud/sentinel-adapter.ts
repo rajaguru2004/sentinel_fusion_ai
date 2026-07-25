@@ -158,6 +158,59 @@ const LEVEL: Record<SentinelScoreOut['risk_level'], RiskLevel> = {
   critical: RiskLevel.CRITICAL,
 };
 
+/**
+ * Human-readable text for raw model feature names. When the model returns no
+ * plain-language reasons we fall back to its top SHAP features — but the raw
+ * names (`f_user_seq_no`, `duration_s`, …) must never reach the UI. Anything not
+ * mapped here is dropped rather than shown as a technical token.
+ */
+const FEATURE_LABELS: Record<string, string> = {
+  duration_s: 'unusual session duration',
+  f_user_secs_since_last: 'unusual time since previous activity',
+  f_user_seq_no: 'customer has little prior history',
+  f_device_seq_no: 'unusual device history',
+  f_user_new_country: 'unusual new country for this customer',
+  f_dayofweek: 'unusual day of week',
+  f_is_weekend: 'unusual day of week',
+  f_hour: 'unusual time of day',
+  f_hour_cos: 'unusual time of day',
+  f_hour_sin: 'unusual time of day',
+  f_is_night: 'unusual time of day',
+  amount: 'unusual transaction amount',
+  f_log1p_amount: 'unusual transaction amount',
+  f_amount_ratio_mean: 'amount differs from the customer average',
+  f_amount_z_user: 'amount differs from the customer average',
+  bank_amount_vs_user_mean: 'amount differs from the customer average',
+  bank_txn_count_1h: 'elevated transaction velocity',
+  f_user_txn_count_1h: 'elevated transaction velocity',
+  f_user_distinct_counterparties: 'unusual number of known payees',
+  name_mismatch: 'beneficiary name does not match the account holder',
+  merchant_category: 'unusual merchant category',
+  f_bytes_ratio: 'unusual traffic volume',
+  f_log1p_bytes_out: 'unusual outbound data volume',
+  dst_port: 'connection to an unusual port',
+};
+
+/** Reasons we never surface (demo-noisy / exposes internal timing). */
+const REASON_BLOCKLIST = [/beneficiary was added .*ago/i, /beneficiary activated .*ago/i];
+
+/**
+ * Build clean, human-readable reasons: prefer the model's plain-language reasons,
+ * else map its top features to friendly text (dropping unmapped raw names), then
+ * strip blocklisted reasons and de-duplicate.
+ */
+export function humanizeReasons(
+  reasons: string[] | undefined,
+  topFeatures?: { feature: string }[],
+): string[] {
+  const source =
+    reasons && reasons.length > 0
+      ? reasons
+      : (topFeatures ?? []).map((f) => FEATURE_LABELS[f.feature]).filter((x): x is string => !!x);
+  const cleaned = source.filter((r) => r && !REASON_BLOCKLIST.some((re) => re.test(r)));
+  return [...new Set(cleaned)];
+}
+
 /** Map the model's ScoreOut back to the bank's RiskVerdict. */
 export function toRiskVerdict(out: SentinelScoreOut): RiskVerdict {
   const c = out.contributions ?? {};
@@ -166,16 +219,12 @@ export function toRiskVerdict(out: SentinelScoreOut): RiskVerdict {
     if (typeof v === 'number') modelScores[k] = v;
   }
 
-  // v2 already returns plain-language reasons; fall back to top feature names.
-  const reasons =
-    out.explanation?.reasons && out.explanation.reasons.length > 0
-      ? out.explanation.reasons
-      : (out.explanation?.top_features ?? []).map((f) => f.feature);
+  const reasons = humanizeReasons(out.explanation?.reasons, out.explanation?.top_features);
 
   return {
     riskScore: out.risk_score,
     riskLevel: LEVEL[out.risk_level],
-    reasons: reasons.length > 0 ? reasons : ['Scored by Sentinel model'],
+    reasons: reasons.length > 0 ? reasons : ['No specific anomalies highlighted'],
     modelScores,
   };
 }

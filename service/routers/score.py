@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from .. import metrics
 from ..auth import require_api_key
+from ..graph.builder import ThreatGraphBuilder
 from ..normalize import to_event_dict
 from ..schemas import BatchIn, BatchOut, EventIn, Explanation, ScoreOut
 from ..settings import get_settings
@@ -27,7 +28,7 @@ def _guard_clock(ev_dict: dict[str, Any]) -> None:
 
 
 async def _score_events(request: Request, events: list[EventIn],
-                        explain: bool) -> list[ScoreOut]:
+                        explain: bool, include_graph: bool = False) -> list[ScoreOut]:
     st = request.app.state
     ev_dicts = [to_event_dict(e) for e in events]
     for d in ev_dicts:
@@ -40,15 +41,30 @@ async def _score_events(request: Request, events: list[EventIn],
 
     settings = get_settings()
     out: list[ScoreOut] = []
+    graph_builder = ThreatGraphBuilder() if include_graph else None
+
     for i, row in enumerate(rows):
         detail = feat_results[i][1]
         row["degradation"] = detail
         row["degraded"] = detail.degraded          # legacy mirror
+        expl_raw = None
         expl = None
-        if explain and settings.enable_explain and row["scored"]:
-            raw = st.explainer.explain(merged[i])
-            expl = Explanation(**raw) if raw else None
-        so = ScoreOut(**row, explanation=expl)
+        if (explain or include_graph) and settings.enable_explain and row["scored"]:
+            expl_raw = st.explainer.explain(merged[i])
+            if explain and expl_raw:
+                expl = Explanation(**expl_raw)
+
+        t_graph = None
+        if include_graph and graph_builder:
+            t_graph = graph_builder.build_graph(
+                event=ev_dicts[i],
+                score_result=row,
+                explanation=expl_raw,
+            )
+            if hasattr(st, "graph_store") and st.graph_store:
+                await st.graph_store.save_graph(t_graph)
+
+        so = ScoreOut(**row, explanation=expl, threat_graph=t_graph)
         out.append(so)
         metrics.SCORED_TOTAL.labels(
             model=so.model or "none", risk_level=so.risk_level).inc()
@@ -64,26 +80,29 @@ async def _score_events(request: Request, events: list[EventIn],
 
 @router.post("/score", response_model=ScoreOut)
 async def score(request: Request, event: EventIn,
-                explain: bool = Query(default=False)) -> ScoreOut:
+                explain: bool = Query(default=False),
+                include_graph: bool = Query(default=False)) -> ScoreOut:
     if explain and not get_settings().enable_explain:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
                             detail="explanations disabled")
     t0 = time.perf_counter()
-    result = (await _score_events(request, [event], explain))[0]
+    result = (await _score_events(request, [event], explain, include_graph))[0]
     metrics.SCORE_LATENCY.labels(endpoint="score").observe(time.perf_counter() - t0)
     return result
 
 
 @router.post("/score/batch", response_model=BatchOut)
 async def score_batch(request: Request, body: BatchIn,
-                      explain: bool = Query(default=False)) -> BatchOut:
+                      explain: bool = Query(default=False),
+                      include_graph: bool = Query(default=False)) -> BatchOut:
     settings = get_settings()
     if len(body.events) > settings.max_batch:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"batch exceeds max_batch={settings.max_batch}")
     t0 = time.perf_counter()
-    results = await _score_events(request, body.events, explain)
+    results = await _score_events(request, body.events, explain, include_graph)
     metrics.SCORE_LATENCY.labels(endpoint="score_batch").observe(
         time.perf_counter() - t0)
     return BatchOut(results=results)
+

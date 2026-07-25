@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { humanizeReasons } from '@/lib/reasons';
 
 type Level = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -72,9 +73,9 @@ export function RiskMeter({
           </span>
         </div>
       </div>
-      {reasons.length > 0 && (
+      {humanizeReasons(reasons).length > 0 && (
         <div className="flex flex-wrap justify-center gap-1.5">
-          {reasons.map((r, i) => (
+          {humanizeReasons(reasons).map((r, i) => (
             <span
               key={i}
               className="rounded-full border px-2.5 py-0.5 text-xs"

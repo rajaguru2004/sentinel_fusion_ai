@@ -1,0 +1,96 @@
+{
+  "run_ts": "2026-07-25T15:57:39+00:00",
+  "git_sha": "cd94b49",
+  "models_tested": [
+    "fraud_payment",
+    "fraud_application",
+    "cyber",
+    "behaviour",
+    "quantum"
+  ],
+  "per_model": {
+    "fraud_payment": {
+      "test_roc_auc": 0.9981,
+      "test_pr_auc": 0.8897,
+      "test_f1": 0.8314,
+      "test_precision": 0.8629,
+      "test_recall": 0.8021,
+      "single_row_ms_p50": 3.746,
+      "batch_rows_per_sec": 1497834,
+      "stress_all_nan_ok": true,
+      "stress_extreme_amounts_ok": true,
+      "stress_idempotent_ok": true
+    },
+    "fraud_application": {
+      "test_roc_auc": 0.7927,
+      "test_pr_auc": 0.3469,
+      "test_f1": 0.3814,
+      "test_precision": 0.3575,
+      "test_recall": 0.4086,
+      "single_row_ms_p50": 1.474,
+      "batch_rows_per_sec": 3490663,
+      "stress_all_nan_ok": true,
+      "stress_extreme_amounts_ok": true,
+      "stress_idempotent_ok": true
+    },
+    "cyber": {
+      "test_roc_auc": 0.9975,
+      "test_pr_auc": 0.996,
+      "test_f1": 0.962,
+      "test_precision": 0.9597,
+      "test_recall": 0.9643,
+      "single_row_ms_p50": 0.797,
+      "batch_rows_per_sec": 1684371,
+      "stress_all_nan_ok": true,
+      "stress_extreme_amounts_ok": true,
+      "stress_idempotent_ok": true
+    },
+    "behaviour": {
+      "test_roc_auc": 0.7033,
+      "test_pr_auc": 0.7144,
+      "test_f1": 0.7476,
+      "test_precision": 0.631,
+      "test_recall": 0.9168,
+      "single_row_ms_p50": 0.717,
+      "batch_rows_per_sec": 6833462,
+      "stress_all_nan_ok": true,
+      "stress_extreme_amounts_ok": true,
+      "stress_idempotent_ok": true
+    },
+    "quantum": {
+      "test_roc_auc": 1.0,
+      "test_pr_auc": 0.9999,
+      "test_f1": 0.9958,
+      "test_precision": 0.9916,
+      "test_recall": 1.0,
+      "single_row_ms_p50": 1.39,
+      "batch_rows_per_sec": 2736030,
+      "stress_all_nan_ok": true,
+      "stress_extreme_amounts_ok": true,
+      "stress_idempotent_ok": true
+    }
+  },
+  "concurrent_5000_stress": {
+    "total_transactions": 5000,
+    "workers": 16,
+    "total_wall_sec": 91.387,
+    "throughput_txns_per_sec": 54.7,
+    "latency_ms_p50": 285.77,
+    "latency_ms_p95": 362.84,
+    "latency_ms_p99": 558.9,
+    "latency_ms_mean": 294.37
+  },
+  "fusion": {
+    "cross_domain_roc_auc": 0.9811,
+    "fuse_rows_per_sec": 232989,
+    "risk_level_distribution": {
+      "low": 460470,
+      "critical": 84624,
+      "high": 50466,
+      "medium": 5456
+    },
+    "stress_monotone_ok": true,
+    "stress_concurrent_ok": true
+  },
+  "baseline_gate": "PASS"
+}

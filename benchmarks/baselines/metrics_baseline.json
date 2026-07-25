@@ -21,12 +21,12 @@
       "min": 0.8797
     },
     "single_row_ms_p50": {
-      "value": 2.569,
+      "value": 2.505,
       "max": 10.0
     },
     "batch_rows_per_sec": {
-      "value": 1605009,
-      "min": 802504
+      "value": 1827145,
+      "min": 913572
     }
   },
   "fraud_application": {
@@ -51,12 +51,12 @@
       "min": 0.3369
     },
     "single_row_ms_p50": {
-      "value": 1.533,
+      "value": 1.457,
       "max": 10.0
     },
     "batch_rows_per_sec": {
-      "value": 3299969,
-      "min": 1649984
+      "value": 3495836,
+      "min": 1747918
     }
   },
   "cyber": {
@@ -85,8 +85,8 @@
       "max": 10.0
     },
     "batch_rows_per_sec": {
-      "value": 1686868,
-      "min": 843434
+      "value": 1767172,
+      "min": 883586
     }
   },
   "behaviour": {
@@ -111,12 +111,12 @@
       "min": 0.7044
     },
     "single_row_ms_p50": {
-      "value": 0.709,
+      "value": 0.712,
       "max": 60.0
     },
     "batch_rows_per_sec": {
-      "value": 7325663,
-      "min": 3662831
+      "value": 7132540,
+      "min": 3566270
     }
   },
   "quantum": {
@@ -141,12 +141,12 @@
       "min": 0.9899
     },
     "single_row_ms_p50": {
-      "value": 1.387,
+      "value": 1.389,
       "max": 10.0
     },
     "batch_rows_per_sec": {
-      "value": 2772366,
-      "min": 1386183
+      "value": 2993160,
+      "min": 1496580
     }
   },
   "fusion": {
@@ -155,8 +155,8 @@
       "min": 0.9761
     },
     "fuse_rows_per_sec": {
-      "value": 332481,
-      "min": 166240
+      "value": 217481,
+      "min": 108740
     }
   }
 }
