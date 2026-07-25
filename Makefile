@@ -41,3 +41,30 @@ fixture:         ## regenerate committed test fixture from full parquet
 
 lint:
 	.venv/bin/ruff check ml service tests
+
+test-model-unit:
+	$(PYTEST) tests/unit tests/integration -q
+
+test-model-perf:
+	$(PYTEST) tests/perf -m perf -v
+
+test-model-quality:
+	$(PYTEST) tests/quality -m quality -v
+
+test-model-stress:
+	$(PYTEST) tests/unit/test_model_stress.py tests/perf/test_model_stress_load.py -v
+
+test-model:
+	$(PYTEST) tests/unit tests/integration tests/unit/test_model_stress.py -q
+	$(PYTEST) tests/quality -m quality -q
+	$(PYTEST) tests/perf -m perf -q
+
+benchmark-run:
+	$(PY) -m ml.benchmark
+
+benchmark-update-baseline:
+	$(PY) -m ml.benchmark --update-baseline
+
+stress-report:
+	$(PY) -m ml.run_stress_report
+

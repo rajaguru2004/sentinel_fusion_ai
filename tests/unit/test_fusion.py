@@ -97,3 +97,27 @@ def test_fuse_missing_calibrator_clear_error():
     e = RiskFusionEngine(W)  # nothing fitted
     with pytest.raises(RuntimeError, match="no calibrator fitted for 'fraud'"):
         e.fuse({"fraud": 0.5})
+
+
+def test_fit_bands_degenerate_falls_back_to_defaults(engine):
+    from ml.config import RISK_BANDS
+    # Less than 100 rows -> fallback to default RISK_BANDS
+    bands = engine.fit_bands("fraud", np.array([0.1]*50), np.array([0]*50))
+    assert bands == list(RISK_BANDS)
+
+
+def test_fit_bands_monotone(engine):
+    rng = np.random.default_rng(42)
+    s = rng.uniform(0, 1, 500)
+    y = (s > 0.7).astype(int)
+    bands = engine.fit_bands("fraud", s, y)
+    cut_values = [b[0] for b in bands]
+    assert cut_values == sorted(cut_values)
+
+
+def test_fuse_frame_handles_all_nan_column(engine):
+    scores = pd.DataFrame({"fraud": [np.nan, np.nan], "cyber": [0.2, 0.4]})
+    out = engine.fuse_frame(scores)
+    assert len(out) == 2
+    assert np.isfinite(out["risk_score"]).all()
+

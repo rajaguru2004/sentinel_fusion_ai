@@ -17,7 +17,7 @@ from ml.feature_spec import CONTRACT_HASH
 
 from .explain import Explainer
 from .feature_service import FeatureService
-from .routers import feedback, health, ingest, metrics, score
+from .routers import feedback, health, ingest, metrics, score, stress
 from .scorer_service import ScorerService
 from .settings import Settings, get_settings
 from .store import FeatureStore, InMemoryStore, RedisFeatureStore
@@ -90,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(score.router)
     app.include_router(ingest.router)
     app.include_router(feedback.router)
+    app.include_router(stress.router)
     return app
 
 

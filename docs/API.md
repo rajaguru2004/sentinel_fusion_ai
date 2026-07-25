@@ -574,6 +574,67 @@ curl -sS http://localhost:8000/feedback -H "X-API-Key: $KEY" \
 curl -sS http://localhost:8000/health
 curl -sS http://localhost:8000/ready
 curl -sS http://localhost:8000/metrics
+
+# Stress Test Real-Time Event Stream (SSE)
+curl -N http://localhost:8000/stress-test/stream -H "X-API-Key: $KEY"
 ```
 
+---
+
+## 9. Stress Test & Real-Time Streaming API
+
+### `POST /stress-test/stream` or `GET /stress-test/stream`
+
+Executes the AI model stress test suite in real time, streaming progress, per-model evaluation metrics, and concurrent transaction load results via **Server-Sent Events (SSE)** (`text/event-stream`). Ideal for front-end dashboards (UI progress bars, ChatGPT-like streaming logs).
+
+#### Headers
+- `X-API-Key`: Required API Key
+
+#### Response Format (`text/event-stream`)
+
+Each event follows standard SSE formatting (`data: JSON\n\n`):
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+
+data: {"type": "log", "message": "Initializing AI Model Stress Test Suite...", "timestamp": "2026-07-25T21:35:00Z"}
+
+data: {"type": "step_start", "step": "benchmark_models", "message": "Evaluating 5 AI model heads..."}
+
+data: {"type": "model_result", "model": "fraud_payment", "domain": "financial", "test_roc_auc": 0.9981, "single_row_ms_p50": 3.75, "batch_rows_per_sec": 1497834}
+
+data: {"type": "step_start", "step": "concurrent_5000_stress", "message": "Executing 5,000 concurrent transactions stress test across 16 workers..."}
+
+data: {"type": "stress_progress", "completed": 1000, "total": 5000, "current_p50_ms": 285.77, "current_p95_ms": 362.84}
+
+data: {"type": "step_complete", "step": "concurrent_5000_stress", "metrics": {"total_transactions": 5000, "workers": 16, "total_wall_sec": 91.39, "throughput_txns_per_sec": 54.7, "latency_ms_p50": 285.77, "latency_ms_p95": 362.84, "latency_ms_p99": 558.90}}
+
+data: {"type": "report_complete", "report": { ... full stress report JSON ... }}
+
+data: {"type": "done", "message": "Stress test execution finished successfully."}
+```
+
+#### Frontend Javascript Integration Example
+
+```javascript
+const eventSource = new EventSource('/stress-test/stream');
+
+eventSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === 'stress_progress') {
+    updateProgressBar(data.completed / data.total * 100);
+  } else if (data.type === 'model_result') {
+    appendModelTable(data);
+  } else if (data.type === 'done') {
+    eventSource.close();
+  }
+};
+```
+
+---
+
 Interactive OpenAPI/Swagger UI: `http://<host>:8000/docs`.
+
