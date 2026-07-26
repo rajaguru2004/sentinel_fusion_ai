@@ -7,6 +7,7 @@ import { StubScorer } from './stub-scorer';
 import { SentinelIngest } from './sentinel-ingest';
 import { SentinelFeedback } from './sentinel-feedback';
 import { SentinelWarmup } from './sentinel-warmup';
+import { SentinelBackfill } from './sentinel-backfill.service';
 import { RiskAlertService } from './risk-alert.service';
 import { ScorerHealthService } from './scorer-health.service';
 import { LiveAlertsService } from './live-alerts.service';
@@ -28,6 +29,7 @@ import { SCORER, type Scorer } from './scorer.interface';
     SentinelIngest,
     SentinelFeedback,
     SentinelWarmup,
+    SentinelBackfill,
     RiskAlertService,
     ScorerHealthService,
     LiveAlertsService,

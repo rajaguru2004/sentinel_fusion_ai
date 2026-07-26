@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, Landmark, Send, Zap, PauseCircle, ShieldX, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Building2, Landmark, Send, Zap, PauseCircle, ShieldX, CheckCircle2, Wand2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -29,8 +29,61 @@ const RAIL_FIELD: Record<Rail, keyof BeneficiaryRow> = {
   IFT: 'allowIFT', RTGS: 'allowRTGS', NEFT: 'allowNEFT', IMPS: 'allowIMPS',
 };
 
+// Seeded demo credentials (apps/backend/prisma/seed.ts). Demo-only convenience —
+// the fill buttons below pre-populate them so the whole flow can be exercised
+// without retyping on every run.
+const DEMO_TXN_PASSWORD = 'Txn@12345';
+const DEMO_OTP = '123456';
+
+type DemoPreset = 'LOW' | 'CRITICAL';
+
+/**
+ * The model does not score the amount in isolation — it scores the event against
+ * what this customer normally does: how many payments in the past hour, whether
+ * the payee is one it has seen, how far the amount sits from their mean, the hour
+ * of day. So the presets are derived from the customer's OWN payment history
+ * rather than hardcoded, and each one moves several signals together:
+ *
+ *   LOW      — a payee already paid before, an amount near the customer's mean.
+ *   CRITICAL — a name-mismatched (or just-activated) payee, an amount far outside
+ *              the customer's range.
+ *
+ * Velocity is the one signal a form cannot set: it counts payments already scored
+ * in the past hour, so a burst of demo runs raises the score no matter what is
+ * filled in. fillDemo() warns when that is about to distort the result.
+ */
+const DEMO_MEAN_FALLBACK = 250_000; // rupees, when the customer has no settled history
+const LOW_MEAN_FRACTION = 0.6; // comfortably inside "normal spend"
+const CRITICAL_MEAN_MULTIPLE = 12;
+/** Fraction of the debit account drained — trips the model's balance-drain feature. */
+const CRITICAL_BALANCE_FRACTION = 0.95;
+/**
+ * Scored payments in the last hour past which velocity dominates the verdict.
+ * Measured against the live model: the payment-shape signals (fresh payee, name
+ * mismatch, balance drain, amount far outside range) top out around HIGH on
+ * their own; adding velocity is what carries the event into CRITICAL/BLOCK.
+ */
+const VELOCITY_WARN_AT = 3;
+
+const beneAgeMinutes = (b: BeneficiaryRow): number =>
+  b.activatedAt ? (Date.now() - new Date(b.activatedAt).getTime()) / 60000 : Infinity;
+/** Mirrors the backend's nameMismatch check (payments.service.ts confirm()). */
+const hasNameMismatch = (b: BeneficiaryRow): boolean =>
+  !!b.nameAsFetched && b.name.toLowerCase() !== b.nameAsFetched.toLowerCase();
+const allowedRails = (b: BeneficiaryRow): Rail[] =>
+  (Object.keys(RAIL_FIELD) as Rail[]).filter((r) => b[RAIL_FIELD[r]]);
+
 interface Risk { riskScore: number; riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; reasons: string[] }
 interface ConfirmResult extends Risk { outcome: string; otpRequestId?: string }
+
+/** Subset of the payments list used to profile "normal" for this customer. */
+interface HistoryRow {
+  amount: string; // paise
+  status: string;
+  riskLevel: string | null;
+  beneficiaryName: string;
+  transactionDate: string;
+}
 
 export default function InitiatePaymentsPage() {
   const [rail, setRail] = useState<Rail | null>(null);
@@ -57,6 +110,26 @@ export default function InitiatePaymentsPage() {
     queryFn: async () => (await api.get('/beneficiaries?status=ACTIVE')).data,
   });
 
+  // Demo-fill only: what the customer's normal looks like, so the presets can be
+  // built from it instead of from constants that drift out of date with the data.
+  const { data: history } = useQuery<HistoryRow[]>({
+    queryKey: ['payments', 'profile'],
+    queryFn: async () => (await api.get('/payments')).data,
+    staleTime: 30_000,
+  });
+
+  const settled = (history ?? []).filter((p) => p.status === 'COMPLETED');
+  const meanRupees =
+    settled.length > 0
+      ? settled.reduce((sum, p) => sum + Number(p.amount) / 100, 0) / settled.length
+      : DEMO_MEAN_FALLBACK;
+  /** Payments already put through the fraud gateway this hour = the velocity the model sees. */
+  const scoredLastHour = (history ?? []).filter(
+    (p) => p.riskLevel && Date.now() - new Date(p.transactionDate).getTime() < 3_600_000,
+  ).length;
+  const paidCount = new Map<string, number>();
+  for (const p of settled) paidCount.set(p.beneficiaryName, (paidCount.get(p.beneficiaryName) ?? 0) + 1);
+
   const eligibleBenes = (benes ?? []).filter((b) => rail && b[RAIL_FIELD[rail]]);
   const selectedBene = benes?.find((b) => b.id === beneficiaryId);
   const selectedAccount = accounts?.find((a) => a.id === debitAccountId);
@@ -64,6 +137,99 @@ export default function InitiatePaymentsPage() {
   const reset = (): void => {
     setStep(0); setDraft(null); setConfirmRes(null); setFinalRes(null);
     setCustRef(''); setAmount(''); setBeneficiaryId(''); setRemarks(''); setTxnPassword(''); setOtp('');
+  };
+
+  /**
+   * LOW wants the most boring payee available: one this customer has actually
+   * paid before (so it is in the model's payee set), matching fetched name, past
+   * the cooling window. CRITICAL wants one carrying a fraud signal of its own —
+   * a name mismatch first, otherwise one still inside the 30-min cooling window.
+   */
+  const pickDemoBene = (preset: DemoPreset): BeneficiaryRow | undefined => {
+    const pool = (benes ?? []).filter((b) => b.status === 'ACTIVE');
+    const onRail = pool.filter((b) => rail && b[RAIL_FIELD[rail]]);
+    if (preset === 'LOW') {
+      const familiar = onRail
+        .filter((b) => !hasNameMismatch(b) && beneAgeMinutes(b) > 60)
+        .sort((a, b) => (paidCount.get(b.name) ?? 0) - (paidCount.get(a.name) ?? 0));
+      return familiar[0] ?? onRail.find((b) => !hasNameMismatch(b)) ?? onRail[0];
+    }
+    // Strongest available payee signal, in order: name mismatch, still inside the
+    // 30-min cooling window, never paid before ("first ever payment to this
+    // beneficiary"), else the most recently activated one.
+    const risky = (list: BeneficiaryRow[]): BeneficiaryRow | undefined =>
+      list.find(hasNameMismatch) ??
+      list.find((b) => beneAgeMinutes(b) < 30) ??
+      list.find((b) => !paidCount.has(b.name)) ??
+      list.slice().sort((a, b) => beneAgeMinutes(a) - beneAgeMinutes(b))[0];
+    // Current rail first, then any rail — switching the rail beats filling data
+    // that would score LOW and demonstrate nothing.
+    return risky(onRail) ?? risky(pool);
+  };
+
+  const demoAmount = (preset: DemoPreset, account: AccountBalance): number => {
+    const availableRupees = Number(account.availableBalance) / 100;
+    if (preset === 'LOW') {
+      // Half the available balance is the ceiling: above that the model starts
+      // reporting "amount is N% of the available balance", which is exactly the
+      // kind of signal a LOW demo should not be raising.
+      const target = Math.min(meanRupees * LOW_MEAN_FRACTION, availableRupees * 0.5);
+      return Math.max(1000, Math.round(target / 1000) * 1000);
+    }
+    // Near-total drain of the debit account: pushes the amount far outside the
+    // customer's range AND trips the balance-drain feature, two signals for one
+    // field. Floored at 12x the mean so a fat account still reads as abnormal.
+    const drain = (Number(account.availableBalance) / 100) * CRITICAL_BALANCE_FRACTION;
+    return Math.max(Math.round((meanRupees * CRITICAL_MEAN_MULTIPLE) / 1000) * 1000, Math.round(drain / 1000) * 1000);
+  };
+
+  const fillDemo = (preset: DemoPreset): void => {
+    // A LOW demo is supposed to end in a posted payment, and the ledger debits
+    // against clearBalance - holdAmount. Held payments can push that below zero
+    // on the largest account, so pick the richest account by AVAILABLE balance
+    // rather than the first one listed. CRITICAL never reaches the ledger, so it
+    // deliberately keeps the largest account for the biggest drain signal.
+    const byAvailable = [...(accounts ?? [])].sort(
+      (a, b) => Number(b.availableBalance) - Number(a.availableBalance),
+    );
+    const account = preset === 'LOW' ? byAvailable[0] : (accounts?.[0] ?? byAvailable[0]);
+    if (!account) return void toast.error('No debit account loaded yet');
+    const bene = pickDemoBene(preset);
+    if (!bene) {
+      return void toast.error(
+        preset === 'LOW'
+          ? `No ACTIVE beneficiary enabled for ${rail}`
+          : 'No high-risk beneficiary in the data — seed the demo dataset first',
+      );
+    }
+    const beneRails = allowedRails(bene);
+    if (rail && !beneRails.includes(rail)) {
+      setRail(beneRails[0]);
+      toast.info(`Switched to ${beneRails[0]} — ${bene.code} is the high-risk payee`);
+    }
+    const value = demoAmount(preset, account);
+    setCustRef(`DEMO-${Date.now().toString().slice(-8)}`);
+    setAmount(String(value));
+    setDebitAccountId(account.id);
+    setBeneficiaryId(bene.id);
+    setRemarks(preset === 'LOW' ? 'Demo payment — routine supplier invoice' : 'Demo payment — high-value, unfamiliar payee');
+    setTxnPassword(DEMO_TXN_PASSWORD);
+    setOtp(DEMO_OTP);
+    toast.success(`${preset === 'LOW' ? 'Low' : 'High'}-risk demo filled — ${bene.code}, ${formatINR(value)}`);
+
+    // Velocity is history, not form data: nothing filled here can pull the score
+    // down once the customer already looks like they are firing off payments —
+    // and nothing else can push it all the way up either.
+    if (preset === 'LOW' && scoredLastHour >= VELOCITY_WARN_AT) {
+      toast.warning(
+        `${scoredLastHour} payments already scored in the past hour — velocity alone can carry this to HIGH. Let the hour roll off for a clean LOW.`,
+      );
+    }
+    if (preset === 'CRITICAL' && scoredLastHour < VELOCITY_WARN_AT) {
+      toast.info(
+        'Expect HIGH (funds held). Repeat this a couple of times: the velocity signal is what takes it to CRITICAL and a block.',
+      );
+    }
   };
 
   // Every money-path action below is wrapped in useSingleFlight: the ref guard is
@@ -146,7 +312,20 @@ export default function InitiatePaymentsPage() {
 
       {step === 0 && (
         <div className="space-y-6">
-          <Card title={`Initiate Payment — ${rail}`}>
+          <Card
+            title={`Initiate Payment — ${rail}`}
+            actions={
+              <>
+                <span className="hidden text-xs text-text-muted sm:inline">Demo data:</span>
+                <Button variant="outline" size="sm" onClick={() => fillDemo('LOW')}>
+                  <Wand2 className="h-4 w-4" /> Low Risk
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => fillDemo('CRITICAL')}>
+                  <Wand2 className="h-4 w-4" /> Critical Risk
+                </Button>
+              </>
+            }
+          >
             <div className="grid gap-4 md:grid-cols-2">
               <Input label="Cust Ref #" required value={custRef} onChange={(e) => setCustRef(e.target.value)} />
               <Input label="Amount (INR)" required type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
