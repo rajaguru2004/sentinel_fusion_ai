@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SentinelService } from './sentinel.service';
 
@@ -26,6 +26,21 @@ export class SentinelController {
   @Post('score')
   score(@Body() event: Record<string, unknown>) {
     return this.sentinel.score(event);
+  }
+
+  /**
+   * AI Attack Replay & Next Attack Prediction — proxies to Sentinel's
+   * `POST /investigate`. Only `event_domain="cyber"` is accepted.
+   *
+   * `sentinel_mode` query param controls whether the Sentinel defensive
+   * response track is included in the response (default: true).
+   */
+  @Post('investigate')
+  investigate(
+    @Body() event: Record<string, unknown>,
+    @Query('sentinel_mode') sentinelMode?: string,
+  ) {
+    return this.sentinel.investigate(event, sentinelMode !== 'false');
   }
 
   /**
