@@ -4,7 +4,7 @@ node_modules/
 .pnp.js
 
 # env — secrets live only here, never committed
-.env
+# .env
 .env.local
 apps/backend/.env
 apps/frontend/.env.local
