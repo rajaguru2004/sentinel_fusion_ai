@@ -41,14 +41,25 @@ const BLOCKLIST = [/beneficiary was added .*ago/i, /beneficiary activated .*ago/
 
 /** Looks like a raw model feature token (e.g. `f_user_seq_no`, `duration_s`). */
 function isRawToken(s: string): boolean {
+  if (typeof s !== 'string') return false;
   return /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/.test(s.trim());
 }
 
-export function humanizeReasons(reasons: string[] | undefined | null): string[] {
-  if (!reasons) return [];
+export function humanizeReasons(reasons: any[] | undefined | null): string[] {
+  if (!reasons || !Array.isArray(reasons)) return [];
   const out: string[] = [];
-  for (const raw of reasons) {
-    if (!raw) continue;
+  for (const item of reasons) {
+    if (!item) continue;
+    let raw = '';
+    if (typeof item === 'string') {
+      raw = item;
+    } else if (typeof item === 'object') {
+      raw = item.label || item.reason || item.code || item.feature || JSON.stringify(item);
+    } else {
+      raw = String(item);
+    }
+    if (typeof raw !== 'string' || !raw.trim()) continue;
+
     if (BLOCKLIST.some((re) => re.test(raw))) continue; // drop beneficiary-age line
     if (raw in FEATURE_LABELS) {
       const mapped = FEATURE_LABELS[raw];
@@ -63,17 +74,15 @@ export function humanizeReasons(reasons: string[] | undefined | null): string[] 
 
 /**
  * Human label for a raw model feature name, for the SHAP breakdown.
- *
- * Differs from humanizeReasons in what it does with an unknown token: that
- * function HIDES it (a half-parsed reason reads as a bug), but here the feature
- * is the row's subject — dropping it would leave an unexplained bar. So an
- * unmapped name is de-snaked into something readable and kept.
  */
-export function featureLabel(feature: string): string {
-  const mapped = FEATURE_LABELS[feature];
+export function featureLabel(feature: any): string {
+  if (!feature) return '';
+  const str = typeof feature === 'string' ? feature : String(feature);
+  const mapped = FEATURE_LABELS[str];
   if (mapped) return mapped;
-  return feature
+  return str
     .replace(/^(f_|q_|bank_)/, '')
     .replace(/_/g, ' ')
     .trim();
 }
+

@@ -36,12 +36,12 @@
   },
   "latency": {
     "single_row_ms": {
-      "mean": 0.896,
-      "p50": 0.812,
-      "p95": 1.2
+      "mean": 0.804,
+      "p50": 0.794,
+      "p95": 0.824
     },
     "batch_rows": 10000,
-    "batch_rows_per_sec": 806075
+    "batch_rows_per_sec": 1725165
   },
   "single_feature_leak_audit": [
     {
@@ -54,18 +54,18 @@
   "shap_top_features": {
     "f_device_past_hisev_count": 6.08303,
     "dst_port": 2.83765,
-    "duration_s": 0.89689,
+    "duration_s": 0.89727,
     "f_device_seq_no": 0.77363,
-    "f_bytes_ratio": 0.66958,
-    "bytes_out": 0.56924,
+    "f_bytes_ratio": 0.67152,
+    "bytes_out": 0.56962,
     "f_user_secs_since_last": 0.50454,
-    "f_hour": 0.50447,
-    "f_user_seq_no": 0.47672,
+    "f_hour": 0.50422,
+    "f_user_seq_no": 0.47249,
     "f_log1p_bytes_in": 0.46161,
-    "f_dayofweek": 0.14696,
+    "f_dayofweek": 0.14857,
     "event_subtype": 0.14545,
     "f_log1p_bytes_out": 0.1363,
     "protocol": 0.12046,
-    "f_hour_cos": 0.06107
+    "f_hour_cos": 0.06046
   }
 }

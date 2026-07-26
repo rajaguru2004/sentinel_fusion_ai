@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, ShieldCheck, Lock } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Lock, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -41,6 +41,13 @@ const MOCK_COUNTRIES: { code: string; label: string }[] = [
   { code: 'RU', label: '🇷🇺 Russia' },
 ];
 
+// Demo accounts — cycle through on button click
+const DEMO_ACCOUNTS = [
+  { label: 'TARAKESH (Maker)',     customerId: '83840226', userId: 'TARAKESH', password: 'Finspark@123', role: '🔵' },
+  { label: 'PRIYA_A (Authorizer)', customerId: '83840226', userId: 'PRIYA_A',  password: 'Finspark@123', role: '🟢' },
+  { label: 'ROHIT_V (Viewer)',     customerId: '83840226', userId: 'ROHIT_V',  password: 'Finspark@123', role: '🟠' },
+];
+
 export default function LoginPage() {
   const router = useRouter();
   const setSession = useAuthStore((s) => s.setSession);
@@ -50,6 +57,7 @@ export default function LoginPage() {
   const [captchaInput, setCaptchaInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [mockCountry, setMockCountry] = useState('');
+  const [demoIdx, setDemoIdx] = useState(0);
   const captchaRef = useRef('');
 
   // Persist the mock-VPN choice so the api interceptor sends it on every request.
@@ -136,6 +144,34 @@ export default function LoginPage() {
             </h2>
             <p className="text-sm text-text-muted">Enter your corporate banking credentials.</p>
           </div>
+
+          {/* Demo credential cycler */}
+          <button
+            type="button"
+            onClick={() => {
+              const acc = DEMO_ACCOUNTS[demoIdx];
+              setValue('customerId', acc.customerId, { shouldValidate: true });
+              setValue('userId', acc.userId, { shouldValidate: true });
+              setValue('password', acc.password, { shouldValidate: true });
+              // Auto-fill CAPTCHA so user can click Login immediately
+              setCaptchaInput(captchaRef.current);
+              setDemoIdx((i) => (i + 1) % DEMO_ACCOUNTS.length);
+            }}
+            className="group flex w-full items-center justify-between rounded-lg border border-dashed border-accent/50 bg-accent/5 px-4 py-2.5 text-sm transition-all hover:border-accent hover:bg-accent/10 active:scale-[0.98]"
+            title="Click to cycle through demo accounts"
+          >
+            <span className="flex items-center gap-2 font-medium text-accent">
+              <Zap className="h-4 w-4" />
+              Fill Demo Credentials
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-text-muted">
+              <span>{DEMO_ACCOUNTS[demoIdx].role}</span>
+              <span>{DEMO_ACCOUNTS[demoIdx].label}</span>
+              <span className="ml-1 rounded bg-accent/20 px-1.5 py-0.5 font-mono text-accent">
+                {demoIdx + 1}/{DEMO_ACCOUNTS.length}
+              </span>
+            </span>
+          </button>
 
           <Input label="Customer Id" required placeholder="83840226" {...register('customerId')} error={errors.customerId?.message} />
           <Input label="User Id" required placeholder="TARAKESH" {...register('userId')} error={errors.userId?.message} />
