@@ -121,6 +121,62 @@ export class SentinelService {
   }
 
   /**
+   * Forward one cyber event to `POST /investigate?sentinel_mode=true`.
+   *
+   * Returns the full AttackReplayResponse: reconstructed kill-chain timeline,
+   * current MITRE ATT&CK stage, predicted next stages with confidence scores,
+   * and the Sentinel defensive response track.
+   *
+   * Only `event_domain === "cyber"` is accepted by the model; the service
+   * enforces this here too so we return a clear 422 before the round trip.
+   */
+  async investigate(
+    event: Record<string, unknown>,
+    sentinelMode = true,
+  ): Promise<unknown> {
+    this.assertEnabled();
+
+    if (!event || typeof event !== 'object' || Array.isArray(event)) {
+      throw new HttpException('Body must be a single event object', HttpStatus.BAD_REQUEST);
+    }
+    if (event.event_domain !== 'cyber') {
+      throw new HttpException(
+        'The attack replay engine only accepts event_domain="cyber"',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+    if (JSON.stringify(event).length > 16_384) {
+      throw new HttpException('Event too large', HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
+    const body = {
+      event_time: new Date().toISOString(),
+      ...event,
+    };
+
+    try {
+      const { data } = await this.http.post(
+        `/investigate?sentinel_mode=${sentinelMode}`,
+        body,
+      );
+      return data;
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        throw new HttpException(err.response.data ?? err.message, err.response.status);
+      }
+      const msg = axios.isAxiosError(err) ? (err.code ?? err.message) : String(err);
+      this.log.error(`Sentinel /investigate proxy failed: ${msg}`);
+      throw new HttpException(
+        {
+          message: `Could not reach the Sentinel model at ${env.sentinel.url} (${msg}).`,
+          fix: 'Check the model is up (curl http://localhost:8000/ready) and SENTINEL_ENABLE_EXPLAIN=true is set.',
+        },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+  }
+
+  /**
    * Forward to `POST /score/counterfactual`.
    *
    * The heavyweight endpoint: per request the model re-scores the event, runs a
