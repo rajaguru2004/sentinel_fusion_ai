@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy, type JwtFromRequestFunction } from 'passport-jwt';
 import type { Request } from 'express';
 import { env } from '../common/env';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface JwtPayload {
   sub: string; // User.id
@@ -39,7 +40,7 @@ function extractor(): JwtFromRequestFunction {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     super({
       jwtFromRequest: extractor(),
       ignoreExpiration: false,
@@ -47,7 +48,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): JwtPayload {
+  async validate(payload: JwtPayload): Promise<JwtPayload> {
+    if (!payload?.sub) throw new UnauthorizedException('Invalid token payload');
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user) throw new UnauthorizedException('Session expired or database reset — please log in again');
     return payload;
   }
 }

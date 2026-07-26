@@ -239,14 +239,14 @@ async function main(): Promise<void> {
       { d: 8,  amount: 5_20_000,    rail: 'RTGS',  beneCode: 'BEN005', status: 'COMPLETED', riskScore: 0.41, riskLevel: 'MEDIUM', decision: 'CHALLENGE', remarks: 'Export docs processing fee', serial: '000016' },
 
       // --- HIGH risk — currently HELD (analyst action pending) ---
-      { d: 0,  amount: 25_00_000,   rail: 'RTGS',  beneCode: 'BEN006', status: 'HELD',      riskScore: 0.68, riskLevel: 'HIGH',   decision: 'HOLD',      remarks: 'Large RTGS to recently activated bene', serial: '000017' },
-      { d: 1,  amount: 12_00_000,   rail: 'RTGS',  beneCode: 'BEN007', status: 'HELD',      riskScore: 0.71, riskLevel: 'HIGH',   decision: 'HOLD',      remarks: 'Name mismatch detected on beneficiary', serial: '000018' },
+      { d: 0.2, amount: 25_00_000,   rail: 'RTGS',  beneCode: 'BEN006', status: 'HELD',      riskScore: 0.68, riskLevel: 'HIGH',   decision: 'HOLD',      remarks: 'Large RTGS to recently activated bene', serial: '000017' },
+      { d: 1,   amount: 12_00_000,   rail: 'RTGS',  beneCode: 'BEN007', status: 'HELD',      riskScore: 0.71, riskLevel: 'HIGH',   decision: 'HOLD',      remarks: 'Name mismatch detected on beneficiary', serial: '000018' },
 
       // --- CRITICAL — BLOCKED, account frozen, case opened ---
-      { d: 2,  amount: 45_00_000,   rail: 'RTGS',  beneCode: 'BEN006', status: 'BLOCKED',   riskScore: 0.88, riskLevel: 'CRITICAL', decision: 'BLOCK',   remarks: 'Velocity spike + new country + high amount', serial: '000019' },
+      { d: 2,   amount: 45_00_000,   rail: 'RTGS',  beneCode: 'BEN006', status: 'BLOCKED',   riskScore: 0.88, riskLevel: 'CRITICAL', decision: 'BLOCK',   remarks: 'Velocity spike + new country + high amount', serial: '000019' },
 
       // --- Cutoff HELD (value-dated) ---
-      { d: 0,  amount: 30_00_000,   rail: 'RTGS',  beneCode: 'BEN008', status: 'HELD',      riskScore: 0.10, riskLevel: 'LOW',    decision: 'EXECUTE',   remarks: 'After-hours RTGS — value dated next working day', serial: '000020' },
+      { d: 0.25, amount: 30_00_000,  rail: 'RTGS',  beneCode: 'BEN008', status: 'HELD',      riskScore: 0.10, riskLevel: 'LOW',    decision: 'EXECUTE',   remarks: 'After-hours RTGS — value dated next working day', serial: '000020' },
 
       // --- Older completed for full statement ---
       { d: 25, amount: 1_85_000,    rail: 'NEFT',  beneCode: 'BEN004', status: 'COMPLETED', riskScore: 0.07, riskLevel: 'LOW',    decision: 'EXECUTE',   serial: '000021' },
