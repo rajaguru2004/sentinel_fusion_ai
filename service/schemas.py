@@ -259,3 +259,99 @@ class ReadyOut(BaseModel):
 
 
 Explanation.model_rebuild()
+
+
+# ---------------------------------------------------------------------------
+# AI Attack Replay & Next Attack Prediction Engine schemas
+# ---------------------------------------------------------------------------
+
+class AttackStageInfo(BaseModel):
+    """A single MITRE ATT&CK stage in the attack timeline."""
+    stage_id: str
+    stage_name: str
+    kill_chain_phase: str
+    mitre_tactic_id: str = ""
+    description: str
+
+
+class EvidenceSignal(BaseModel):
+    """Single evidence item derived from SHAP attribution or raw event field."""
+    feature: str
+    value: Any = None
+    shap_attribution: float = 0.0
+    description: str
+    stage_hints: list[str] = []     # which MITRE stages this signal supports
+
+
+class ReplayStep(BaseModel):
+    """One step in the chronological attack replay timeline."""
+    step_index: int
+    stage_id: str
+    stage_name: str
+    timestamp: datetime
+    title: str
+    description: str
+    evidence: list[EvidenceSignal] = []
+    is_sentinel_intervention: bool = False
+
+
+class PredictedStage(BaseModel):
+    """A predicted next attack stage with confidence and defensive actions."""
+    stage_id: str
+    stage_name: str
+    kill_chain_phase: str
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    probability_label: str          # "High" | "Medium" | "Low"
+    explanation: str
+    supporting_evidence: list[str] = []   # plain-text bullets
+    recommended_actions: list[str] = []   # immediate defensive steps
+
+
+class SentinelResponseStep(BaseModel):
+    """One step in the 'With Sentinel' defensive response track."""
+    step_index: int
+    action: str
+    outcome: str
+    stage_blocked: str
+
+
+class AttackReplayResponse(BaseModel):
+    """Complete AI Attack Replay & Next Attack Prediction payload.
+
+    Frontend-ready: all fields typed, ordered, and annotation-rich.
+    Produced by AttackReplayEngine.investigate().
+    """
+    model_config = ConfigDict(protected_namespaces=())
+
+    # Incident metadata
+    incident_id: str
+    event_id: str
+    domain: str
+    risk_score: float
+    risk_level: RiskLevel
+    model_version: str
+    investigated_at: datetime
+
+    # Full scoring output passthrough
+    score: ScoreOut
+
+    # Current attack state
+    current_stage: AttackStageInfo
+    attack_maturity: str            # "Early" | "Mid" | "Late" | "Critical"
+
+    # Completed stages (attack replay — ordered from initial_access to current)
+    completed_stages: list[AttackStageInfo] = []
+    replay_timeline: list[ReplayStep] = []
+
+    # Evidence observed in this event
+    observed_evidence: list[EvidenceSignal] = []
+
+    # Predicted next stages (ordered by confidence desc)
+    predicted_stages: list[PredictedStage] = []
+
+    # Sentinel defensive response track
+    sentinel_response: list[SentinelResponseStep] = []
+
+    # Narrative summary and overall confidence
+    ai_summary: str
+    investigation_confidence: float = Field(default=0.0, ge=0.0, le=1.0)

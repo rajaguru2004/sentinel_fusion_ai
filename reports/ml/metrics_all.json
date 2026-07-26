@@ -37,12 +37,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 2.466,
-        "p50": 2.458,
-        "p95": 2.53
+        "mean": 2.469,
+        "p50": 2.445,
+        "p95": 2.556
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1853854
+      "batch_rows_per_sec": 1850797
     },
     "single_feature_leak_audit": [
       {
@@ -113,12 +113,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.439,
-        "p50": 1.434,
-        "p95": 1.465
+        "mean": 1.497,
+        "p50": 1.431,
+        "p95": 1.96
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 3483774
+      "batch_rows_per_sec": 3885779
     },
     "single_feature_leak_audit": [],
     "best_iteration": 56,
@@ -178,12 +178,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.804,
-        "p50": 0.794,
-        "p95": 0.824
+        "mean": 0.787,
+        "p50": 0.781,
+        "p95": 0.806
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 1725165
+      "batch_rows_per_sec": 1738673
     },
     "single_feature_leak_audit": [
       {
@@ -196,19 +196,19 @@
     "shap_top_features": {
       "f_device_past_hisev_count": 6.08303,
       "dst_port": 2.83765,
-      "duration_s": 0.89727,
+      "duration_s": 0.89419,
       "f_device_seq_no": 0.77363,
-      "f_bytes_ratio": 0.67152,
-      "bytes_out": 0.56962,
+      "f_bytes_ratio": 0.67142,
+      "bytes_out": 0.58426,
       "f_user_secs_since_last": 0.50454,
-      "f_hour": 0.50422,
+      "f_hour": 0.50289,
       "f_user_seq_no": 0.47249,
-      "f_log1p_bytes_in": 0.46161,
-      "f_dayofweek": 0.14857,
+      "f_log1p_bytes_in": 0.46159,
+      "f_log1p_bytes_out": 0.15517,
+      "f_dayofweek": 0.14638,
       "event_subtype": 0.14545,
-      "f_log1p_bytes_out": 0.1363,
       "protocol": 0.12046,
-      "f_hour_cos": 0.06046
+      "f_hour_sin": 0.06331
     }
   },
   "behaviour": {
@@ -249,12 +249,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 0.725,
-        "p50": 0.717,
-        "p95": 0.741
+        "mean": 0.72,
+        "p50": 0.709,
+        "p95": 0.737
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 7191947
+      "batch_rows_per_sec": 7201503
     },
     "single_feature_leak_audit": [],
     "best_iteration": 21,
@@ -312,12 +312,12 @@
     },
     "latency": {
       "single_row_ms": {
-        "mean": 1.773,
-        "p50": 1.367,
-        "p95": 1.457
+        "mean": 1.742,
+        "p50": 1.364,
+        "p95": 1.479
       },
       "batch_rows": 10000,
-      "batch_rows_per_sec": 3030818
+      "batch_rows_per_sec": 3016291
     },
     "single_feature_leak_audit": [],
     "best_iteration": 119,
