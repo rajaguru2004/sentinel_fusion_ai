@@ -22,7 +22,7 @@ import {
   type ScoreRow,
   type TimedEnvelope,
 } from '@/lib/benchmark';
-import type { ScoreOut } from '@/lib/sentinel';
+import { BAND_EDGES, type ScoreOut } from '@/lib/sentinel';
 
 type Level = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 const toBadge = (l: string): Level => l.toUpperCase() as Level;
@@ -424,7 +424,7 @@ function CounterfactualTab({
                 }
               >
                 <div className="mb-3 flex flex-wrap gap-3 text-xs">
-                  <Meter label="Risk reduction" value={`${c.risk_reduction_pct}%`} />
+                  <Meter label="Predicted reduction" value={`${c.risk_reduction_pct}%`} />
                   <Meter label="Confidence" value={c.confidence.toFixed(2)} />
                   <Meter label="Actionability" value={c.actionability_score.toFixed(2)} />
                   <Meter label="Predicted score" value={c.predicted_risk_score.toFixed(4)} />
@@ -455,7 +455,9 @@ function CounterfactualTab({
                     apply={applied[c.rank]}
                     cf={c}
                     originalScore={r.original_risk_score}
+                    originalLevel={r.original_risk_level}
                     targetLevel={r.target_risk_level}
+                    model={r.model}
                     onRerun={(derive) => onApply(c, derive)}
                   />
                 )}
@@ -481,13 +483,17 @@ function AppliedResult({
   apply,
   cf,
   originalScore,
+  originalLevel,
   targetLevel,
+  model,
   onRerun,
 }: {
   apply: ApplyState;
   cf: Counterfactual;
   originalScore: number;
+  originalLevel: string;
   targetLevel: string;
+  model: string | null;
   onRerun: (deriveDependents: boolean) => void;
 }) {
   if (apply.status === 'running') {
@@ -511,6 +517,20 @@ function AppliedResult({
   // "Close enough" is generous on purpose — the interesting case is a gap you
   // can see, not a rounding difference dressed up as a discrepancy.
   const matchedPrediction = Math.abs(actual - cf.predicted_risk_score) < 0.005;
+  const bandChanged = apply.score.risk_level.toLowerCase() !== originalLevel.toLowerCase();
+
+  // The edge this score would have to cross to leave the band it landed in.
+  // These are the fitted, cost-optimal thresholds rather than round numbers,
+  // which is exactly why a 22% drop can look large and still change nothing.
+  const edges = BAND_EDGES[model ?? ''];
+  const boundary = edges
+    ? `${(apply.score.risk_level === 'critical'
+        ? edges.critical
+        : apply.score.risk_level === 'high'
+          ? edges.high
+          : edges.medium
+      ).toFixed(4)} for ${model}`
+    : 'the next band down';
 
   return (
     <div className="mt-3 rounded-[var(--radius-input)] border border-border bg-bg p-3">
@@ -523,7 +543,7 @@ function AppliedResult({
         <span className="text-text-muted">→</span>
         <Column label="Actual" score={actual} level={apply.score.risk_level} />
         <div className="ml-auto text-right">
-          <p className="text-xs text-text-muted">real reduction</p>
+          <p className="text-xs text-text-muted">measured score drop</p>
           <p className={`text-lg font-semibold ${drop > 0 ? 'text-risk-low' : 'text-risk-critical'}`}>
             {drop > 0 ? '−' : '+'}
             {Math.abs(drop).toFixed(1)}%
@@ -531,13 +551,31 @@ function AppliedResult({
         </div>
       </div>
 
+      {/* The score falling while the BAND stays put is the single most misread
+          thing on this panel — a headline "−22.1%" next to an unchanged
+          CRITICAL badge reads as a contradiction. Say which it is, outright. */}
+      <p className="mt-2 text-xs text-text-muted">
+        {bandChanged ? (
+          <>
+            Band moved <span className="font-medium text-text">{originalLevel.toUpperCase()}</span> →{' '}
+            <span className="font-medium text-risk-low">{apply.score.risk_level.toUpperCase()}</span>.
+          </>
+        ) : (
+          <>
+            The score fell {Math.abs(drop).toFixed(1)}%, but not far enough to leave{' '}
+            <span className="font-medium text-text">{apply.score.risk_level.toUpperCase()}</span> — that
+            band ends at {boundary}.
+          </>
+        )}
+      </p>
+
       <div className="mt-2 flex flex-wrap gap-2">
         <Badge tone={hitTarget ? 'success' : 'warning'}>
           {hitTarget ? `reached the ${targetLevel} target` : `still ${apply.score.risk_level}, short of ${targetLevel}`}
         </Badge>
         <Badge tone={matchedPrediction ? 'success' : 'neutral'}>
           {matchedPrediction
-            ? 'matches the prediction'
+            ? 'model predicted this exactly'
             : `${actual < cf.predicted_risk_score ? 'beat' : 'missed'} the prediction by ${Math.abs(actual - cf.predicted_risk_score).toFixed(4)}`}
         </Badge>
       </div>

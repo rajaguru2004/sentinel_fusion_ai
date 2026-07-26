@@ -242,29 +242,12 @@ export const CF_SCENARIOS: CfScenario[] = [
       is_credit: 0,
     }),
   },
-  {
-    id: 'oversized-vs-mean',
-    label: 'Payment far above the customer average',
-    note: 'One dominant driver. The recommendation should be a specific amount, not a vague "spend less".',
-    targetRiskLevel: 'medium',
-    build: () => ({
-      event_id: rid('cf-amount'),
-      event_domain: 'financial',
-      event_type: 'PAYMENT_INITIATE',
-      user_id: rid('bench-customer-03'),
-      amount: 180000.0,
-      balance_before: 200000.0,
-      balance_after: 20000.0,
-      counterparty_is_new: 0,
-      counterparty_age_s: 40 * 86400,
-      bank_amount_vs_user_mean: 24,
-      country: 'IN',
-      is_foreign_request: 0,
-      currency: 'INR',
-      payment_type: 'transfer',
-      is_credit: 0,
-    }),
-  },
+  // REMOVED: 'oversized-vs-mean' ("Payment far above the customer average").
+  // It asked for a `medium` target on an event the model scores at 0.5057, and
+  // medium for fraud_payment is < 0.0396 — unreachable, so the endpoint
+  // returned zero recommendations every time and Analyse dead-ended on a "No
+  // recommendation" card. Re-adding it needs a target the model can actually
+  // hit; see BAND_EDGES in lib/sentinel.ts for the fitted thresholds.
 ];
 
 // ----------------------------------------------------------------------- batch
