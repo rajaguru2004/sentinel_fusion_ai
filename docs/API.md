@@ -163,6 +163,7 @@ rejected with 422.
 | POST | `/graph/generate` | ✔ | Generate visual attack threat graph |
 | GET  | `/graph/incident/{incident_id}` | ✔ | Retrieve cached/stored incident threat graph |
 | GET/POST | `/stress-test/stream` | ✔ | Stream real-time AI model stress test progress |
+| POST | `/investigate` | ✔ | AI Security Investigation Assistant & Attack Replay |
 
 
 ---
