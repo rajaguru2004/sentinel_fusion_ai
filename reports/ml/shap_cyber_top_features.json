@@ -4,18 +4,18 @@
   "mean_abs_shap_top15": {
     "f_device_past_hisev_count": 6.08303,
     "dst_port": 2.83765,
-    "duration_s": 0.89727,
+    "duration_s": 0.89419,
     "f_device_seq_no": 0.77363,
-    "f_bytes_ratio": 0.67152,
-    "bytes_out": 0.56962,
+    "f_bytes_ratio": 0.67142,
+    "bytes_out": 0.58426,
     "f_user_secs_since_last": 0.50454,
-    "f_hour": 0.50422,
+    "f_hour": 0.50289,
     "f_user_seq_no": 0.47249,
-    "f_log1p_bytes_in": 0.46161,
-    "f_dayofweek": 0.14857,
+    "f_log1p_bytes_in": 0.46159,
+    "f_log1p_bytes_out": 0.15517,
+    "f_dayofweek": 0.14638,
     "event_subtype": 0.14545,
-    "f_log1p_bytes_out": 0.1363,
     "protocol": 0.12046,
-    "f_hour_cos": 0.06046
+    "f_hour_sin": 0.06331
   }
 }

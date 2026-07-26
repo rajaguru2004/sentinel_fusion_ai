@@ -19,7 +19,8 @@ from .counterfactual import CounterfactualEngine
 from .explain import Explainer
 from .feature_service import FeatureService
 from .graph.store import InMemoryThreatGraphStore, RedisThreatGraphStore
-from .routers import counterfactual, feedback, graph, health, ingest, metrics, score, stress
+from .replay import AttackReplayEngine
+from .routers import counterfactual, feedback, graph, health, ingest, investigate, metrics, score, stress
 from .scorer_service import ScorerService
 from .settings import Settings, get_settings
 from .store import FeatureStore, InMemoryStore, RedisFeatureStore
@@ -70,6 +71,7 @@ async def lifespan(app: FastAPI):
         app.state.graph_store = RedisThreatGraphStore(r_client)
     else:
         app.state.graph_store = InMemoryThreatGraphStore()
+    app.state.attack_replay_engine = AttackReplayEngine(app.state)
 
     try:
         yield
@@ -92,6 +94,7 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router)
     app.include_router(stress.router)
     app.include_router(graph.router)
+    app.include_router(investigate.router)
     return app
 
 

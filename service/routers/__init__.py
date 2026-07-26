@@ -1,4 +1,5 @@
-from . import counterfactual, feedback, health, metrics, score
+from . import counterfactual, feedback, health, investigate, metrics, score
 
-__all__ = ["counterfactual", "feedback", "health", "metrics", "score"]
+__all__ = ["counterfactual", "feedback", "health", "investigate", "metrics", "score"]
+
 
