@@ -28,6 +28,7 @@ export interface SentinelEventIn {
   currency?: string;
   payment_type?: string;
   is_credit?: number;
+  counterparty_id?: string;
   counterparty_is_new?: number;
   counterparty_age_s?: number;
   name_mismatch?: number;
@@ -96,6 +97,28 @@ export interface SentinelScoreOut {
 const bool01 = (v: boolean | undefined): number | undefined =>
   v === undefined ? undefined : v ? 1 : 0;
 
+/** Asia/Kolkata. India-only bank, and IST has no DST, so a constant is exact. */
+const BANK_UTC_OFFSET_MINUTES = 330;
+
+/**
+ * Same instant, expressed in the bank's local offset instead of `Z`.
+ *
+ * The model derives `f_hour` / `f_is_night` from the offset it is handed
+ * (service/feature_service.py -> ml.feature_core.stateless_features), and it was
+ * trained on wall-clock local time. Sending `toISOString()` therefore reported
+ * every Indian business morning as pre-dawn activity: 09:00 IST arrives as 03:30,
+ * lands in the model's night window, and adds "unusual time of day" to routine
+ * payments. Measured on a routine transfer at 07:42 IST: 0.485 (CRITICAL) sent as
+ * UTC vs 0.004 (LOW) sent as +05:30 — the single largest distortion on the path.
+ * The instant is unchanged, so the service's future-skew check is unaffected.
+ */
+export function toBankLocalIso(iso: string): string {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return iso;
+  const shifted = new Date(t.getTime() + BANK_UTC_OFFSET_MINUTES * 60_000);
+  return `${shifted.toISOString().slice(0, -1)}+05:30`;
+}
+
 /** Drop keys whose value is undefined so `extra="forbid"` never trips. */
 function compact<T extends object>(obj: T): T {
   for (const k of Object.keys(obj) as (keyof T)[]) {
@@ -117,7 +140,7 @@ export function toEventIn(e: UnifiedEvent): SentinelEventIn {
     // back to now() so a missing timestamp can't fail the request.
     event_id: e.eventId ?? `evt:${Date.now()}`,
     event_domain: domain,
-    event_time: e.timestamp ?? new Date().toISOString(),
+    event_time: toBankLocalIso(e.timestamp ?? new Date().toISOString()),
     user_id: e.userId,
     device_id: e.deviceFingerprint,
     event_type: e.eventType,
@@ -131,6 +154,9 @@ export function toEventIn(e: UnifiedEvent): SentinelEventIn {
     currency: isPayment ? 'INR' : undefined,
     payment_type: isPayment ? 'transfer' : undefined,
     is_credit: isPayment ? 0 : undefined,
+    // Keys the store's per-user payee set — the only way the model can tell a
+    // monthly supplier apart from a payee it has never seen.
+    counterparty_id: e.beneficiaryId,
     counterparty_is_new: bool01(e.isNewBeneficiary),
     counterparty_age_s: ageSeconds,
     name_mismatch: bool01(e.nameMismatch),

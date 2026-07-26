@@ -109,6 +109,9 @@ export class BeneficiariesService {
       eventId: `ben-add:${beneficiary.id}`,
       eventType: 'BENEFICIARY_ADD',
       userId: actorId,
+      // No beneficiaryId — see sentinel-backfill.service.ts: the model's payee
+      // set means "paid before", and registering a payee must not make the first
+      // payment to it look familiar.
       timestamp: new Date().toISOString(),
       isNewBeneficiary: true,
     });

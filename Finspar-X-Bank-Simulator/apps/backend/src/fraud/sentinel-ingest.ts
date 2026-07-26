@@ -31,6 +31,24 @@ export class SentinelIngest {
     });
   }
 
+  /**
+   * Awaited single ingest, for callers that must control ORDER — the store
+   * advances per-user state in arrival order, so a history backfill has to post
+   * chronologically rather than fire a burst. Returns false instead of throwing;
+   * still never belongs on a request path.
+   */
+  async streamOrdered(event: UnifiedEvent): Promise<boolean> {
+    if (!env.sentinel.enabled) return false;
+    try {
+      await this.http.post('/ingest', toEventIn(event));
+      return true;
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? (err.code ?? err.message) : String(err);
+      this.log.warn(`Sentinel /ingest failed for ${event.eventId ?? event.eventType}: ${msg}`);
+      return false;
+    }
+  }
+
   /** Stream one context event. No-op when the model is disabled. Never throws. */
   stream(event: UnifiedEvent): void {
     if (!env.sentinel.enabled) return;

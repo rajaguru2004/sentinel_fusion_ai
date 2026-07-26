@@ -177,6 +177,16 @@ export const env = {
     get timeoutMs(): number {
       return Number(optional('SENTINEL_TIMEOUT_MS', '800'));
     },
+    /**
+     * Replay the existing payment history into the model's feature store at boot
+     * (SentinelBackfill). The store is in-memory unless the model is pointed at
+     * Redis, so without this a restarted model treats every customer as brand
+     * new and scores routine payments as anomalies. Turn off only when the store
+     * is durable and already populated.
+     */
+    get backfillOnBoot(): boolean {
+      return optional('SENTINEL_BACKFILL_ON_BOOT', 'true') === 'true';
+    },
   },
   // Risk-alert email. Every scored event at or above `minLevel` mails the
   // CUSTOMER the event belongs to — no batching, no throttling: one event, one

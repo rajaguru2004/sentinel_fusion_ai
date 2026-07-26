@@ -156,8 +156,20 @@ export class FraudGateway {
 
     const [beneficiary, txnCountLastHour, agg, debitAccount, customer, user] = await Promise.all([
       this.prisma.beneficiary.findUnique({ where: { id: params.beneficiaryId } }),
+      // Velocity = payments actually PUT THROUGH the gateway in the last hour,
+      // not rows created. A draft the user typed and abandoned never moved
+      // money and is not an attempt; counting it meant opening the payment form
+      // a few times raised the customer's fraud score, which is both wrong and
+      // (empirically) the single largest driver of the model's verdict. A
+      // payment carries a riskScore only once confirm() has assessed it, and the
+      // event being scored right now is still null here, so it never counts
+      // itself.
       this.prisma.payment.count({
-        where: { customerId: params.customerId, createdAt: { gte: new Date(Date.now() - 3600_000) } },
+        where: {
+          customerId: params.customerId,
+          createdAt: { gte: new Date(Date.now() - 3600_000) },
+          riskScore: { not: null },
+        },
       }),
       this.prisma.payment.aggregate({
         where: { customerId: params.customerId, status: 'COMPLETED' },
@@ -213,6 +225,7 @@ export class FraudGateway {
       timestamp: new Date().toISOString(),
       amount: amountRupees,
       rail: params.rail,
+      beneficiaryId: params.beneficiaryId,
       beneficiaryAgeMinutes,
       isNewBeneficiary: beneficiaryAgeMinutes != null && beneficiaryAgeMinutes < 60,
       txnCountLastHour,

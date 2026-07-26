@@ -31,6 +31,13 @@ export interface UnifiedEvent {
   timestamp: string;
   amount?: number; // rupees
   rail?: string;
+  /**
+   * Beneficiary id, sent as the model's `counterparty_id`. The store keys its
+   * per-user payee SET on this: without it `f_user_distinct_counterparties`
+   * stays 0 and every payee looks unseen, so a routine transfer to a supplier
+   * paid monthly still reads as anomalous ("unusual number of known payees").
+   */
+  beneficiaryId?: string;
   beneficiaryAgeMinutes?: number;
   isNewBeneficiary?: boolean;
   txnCountLastHour?: number;
