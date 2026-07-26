@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Activity, Braces, CheckCircle2, Gauge, Layers, Loader2, Play, TrendingDown } from 'lucide-react';
+import { Activity, Braces, CheckCircle2, Gauge, Layers, Loader2, Play, TrendingDown, Wand2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge, RiskBadge } from '@/components/ui/Badge';
@@ -11,15 +11,18 @@ import { featureLabel } from '@/lib/reasons';
 import {
   BATCH_SIZES,
   CF_SCENARIOS,
+  applyCounterfactual,
   buildBatch,
   levelCounts,
   type BatchResult,
   type BatchSize,
   type CfScenario,
+  type Counterfactual,
   type CounterfactualResult,
   type ScoreRow,
   type TimedEnvelope,
 } from '@/lib/benchmark';
+import type { ScoreOut } from '@/lib/sentinel';
 
 type Level = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 const toBadge = (l: string): Level => l.toUpperCase() as Level;
@@ -43,22 +46,64 @@ interface RunState<T> {
 
 const idle = <T,>(): RunState<T> => ({ status: 'idle', result: null, error: null, timing: null, label: null });
 
+/** Outcome of applying one recommendation and re-scoring it for real. */
+export interface ApplyState {
+  status: 'running' | 'done' | 'error';
+  score: ScoreOut | null;
+  changed: string[];
+  derived: string[];
+  /** False when the run deliberately skipped the dependent-field fix-ups. */
+  consistent: boolean;
+  error: string | null;
+}
+
 export default function BenchmarkPage() {
   const [tab, setTab] = useState<'counterfactual' | 'batch'>('batch');
   const [cf, setCf] = useState<RunState<CounterfactualResult>>(idle);
   const [batch, setBatch] = useState<RunState<BatchResult>>(idle);
 
+  // The EXACT event that was analysed. scenario.build() stamps a fresh event_id
+  // on every call, so rebuilding it at apply time would re-score a different
+  // event than the one the recommendations describe.
+  const [cfEvent, setCfEvent] = useState<Record<string, unknown> | null>(null);
+  const [applied, setApplied] = useState<Record<number, ApplyState>>({});
+
   async function runCounterfactual(scenario: CfScenario): Promise<void> {
     setCf({ status: 'running', result: null, error: null, timing: null, label: scenario.label });
+    setApplied({}); // previous scenario's applied results no longer relate to what is on screen
+    const event = scenario.build();
+    setCfEvent(event);
     try {
       const { data } = await api.post<TimedEnvelope<CounterfactualResult>>('/sentinel/counterfactual', {
-        event: scenario.build(),
+        event,
         target_risk_level: scenario.targetRiskLevel,
         max_recommendations: 3,
       });
       setCf({ status: 'done', result: data.data, error: null, timing: data.timing, label: scenario.label });
     } catch (e) {
       setCf({ status: 'error', result: null, error: apiError(e), timing: null, label: scenario.label });
+    }
+  }
+
+  /** Apply one recommendation to the analysed event and re-score it for real. */
+  async function applyRecommendation(c: Counterfactual, deriveDependents: boolean): Promise<void> {
+    if (!cfEvent) return;
+    const { event, changed, derived } = applyCounterfactual(cfEvent, c, { deriveDependents });
+    setApplied((prev) => ({
+      ...prev,
+      [c.rank]: { status: 'running', score: null, changed, derived, consistent: deriveDependents, error: null },
+    }));
+    try {
+      const { data } = await api.post<ScoreOut>('/sentinel/score', event);
+      setApplied((prev) => ({
+        ...prev,
+        [c.rank]: { status: 'done', score: data, changed, derived, consistent: deriveDependents, error: null },
+      }));
+    } catch (e) {
+      setApplied((prev) => ({
+        ...prev,
+        [c.rank]: { status: 'error', score: null, changed, derived, consistent: deriveDependents, error: apiError(e) },
+      }));
     }
   }
 
@@ -105,7 +150,13 @@ export default function BenchmarkPage() {
         <BatchTab state={batch} busy={busy} onRun={runBatch} />
       </div>
       <div className={tab === 'counterfactual' ? '' : 'hidden'}>
-        <CounterfactualTab state={cf} busy={busy} onRun={runCounterfactual} />
+        <CounterfactualTab
+          state={cf}
+          busy={busy}
+          onRun={runCounterfactual}
+          applied={applied}
+          onApply={applyRecommendation}
+        />
       </div>
     </div>
   );
@@ -260,10 +311,14 @@ function CounterfactualTab({
   state,
   busy,
   onRun,
+  applied,
+  onApply,
 }: {
   state: RunState<CounterfactualResult>;
   busy: boolean;
   onRun: (s: CfScenario) => void;
+  applied: Record<number, ApplyState>;
+  onApply: (c: Counterfactual, deriveDependents: boolean) => void;
 }) {
   const r = state.result;
 
@@ -349,12 +404,30 @@ function CounterfactualTab({
             </Card>
           ) : (
             r.counterfactuals.map((c) => (
-              <Card key={c.rank} title={`Recommendation ${c.rank}`}>
+              <Card
+                key={c.rank}
+                title={`Recommendation ${c.rank}`}
+                actions={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={applied[c.rank]?.status === 'running'}
+                    onClick={() => onApply(c, false)}
+                  >
+                    {applied[c.rank]?.status === 'running' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-4 w-4" />
+                    )}
+                    {applied[c.rank] ? 'Re-apply' : 'Apply'}
+                  </Button>
+                }
+              >
                 <div className="mb-3 flex flex-wrap gap-3 text-xs">
                   <Meter label="Risk reduction" value={`${c.risk_reduction_pct}%`} />
                   <Meter label="Confidence" value={c.confidence.toFixed(2)} />
                   <Meter label="Actionability" value={c.actionability_score.toFixed(2)} />
-                  <Meter label="Resulting score" value={c.predicted_risk_score.toFixed(4)} />
+                  <Meter label="Predicted score" value={c.predicted_risk_score.toFixed(4)} />
                 </div>
 
                 <div className="space-y-2">
@@ -376,11 +449,157 @@ function CounterfactualTab({
                 </div>
 
                 <p className="mt-2 text-xs leading-relaxed text-text-muted">{c.explanation}</p>
+
+                {applied[c.rank] && (
+                  <AppliedResult
+                    apply={applied[c.rank]}
+                    cf={c}
+                    originalScore={r.original_risk_score}
+                    targetLevel={r.target_risk_level}
+                    onRerun={(derive) => onApply(c, derive)}
+                  />
+                )}
               </Card>
             ))
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * What actually happened when the recommendation was applied.
+ *
+ * The point of the panel is the middle column: the counterfactual's PREDICTED
+ * score sits next to the score the model really returned for the mutated event.
+ * A recommendation that survives being carried out is a much stronger claim
+ * than one that is only asserted, and a gap between the two is worth seeing
+ * rather than hiding.
+ */
+function AppliedResult({
+  apply,
+  cf,
+  originalScore,
+  targetLevel,
+  onRerun,
+}: {
+  apply: ApplyState;
+  cf: Counterfactual;
+  originalScore: number;
+  targetLevel: string;
+  onRerun: (deriveDependents: boolean) => void;
+}) {
+  if (apply.status === 'running') {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-[var(--radius-input)] border border-border bg-bg p-3 text-xs text-text-muted">
+        <Loader2 className="h-4 w-4 animate-spin" /> Re-scoring the modified event…
+      </div>
+    );
+  }
+  if (apply.status === 'error' || !apply.score) {
+    return (
+      <div className="mt-3 rounded-[var(--radius-input)] border border-risk-critical/30 bg-risk-critical/5 p-3 text-xs text-risk-critical">
+        Could not re-score: {apply.error ?? 'unknown error'}
+      </div>
+    );
+  }
+
+  const actual = apply.score.risk_score;
+  const drop = originalScore > 0 ? ((originalScore - actual) / originalScore) * 100 : 0;
+  const hitTarget = apply.score.risk_level.toLowerCase() === targetLevel.toLowerCase();
+  // "Close enough" is generous on purpose — the interesting case is a gap you
+  // can see, not a rounding difference dressed up as a discrepancy.
+  const matchedPrediction = Math.abs(actual - cf.predicted_risk_score) < 0.005;
+
+  return (
+    <div className="mt-3 rounded-[var(--radius-input)] border border-border bg-bg p-3">
+      <p className="mb-2 text-xs font-medium text-text">Applied &amp; re-scored by the model</p>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <Column label="Before" score={originalScore} level={null} muted />
+        <span className="text-text-muted">→</span>
+        <Column label="Predicted" score={cf.predicted_risk_score} level={cf.predicted_risk_level} muted />
+        <span className="text-text-muted">→</span>
+        <Column label="Actual" score={actual} level={apply.score.risk_level} />
+        <div className="ml-auto text-right">
+          <p className="text-xs text-text-muted">real reduction</p>
+          <p className={`text-lg font-semibold ${drop > 0 ? 'text-risk-low' : 'text-risk-critical'}`}>
+            {drop > 0 ? '−' : '+'}
+            {Math.abs(drop).toFixed(1)}%
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Badge tone={hitTarget ? 'success' : 'warning'}>
+          {hitTarget ? `reached the ${targetLevel} target` : `still ${apply.score.risk_level}, short of ${targetLevel}`}
+        </Badge>
+        <Badge tone={matchedPrediction ? 'success' : 'neutral'}>
+          {matchedPrediction
+            ? 'matches the prediction'
+            : `${actual < cf.predicted_risk_score ? 'beat' : 'missed'} the prediction by ${Math.abs(actual - cf.predicted_risk_score).toFixed(4)}`}
+        </Badge>
+      </div>
+
+      <p className="mt-2 text-xs text-text-muted">
+        Changed <span className="font-mono text-text">{apply.changed.join(', ') || '—'}</span>
+        {apply.derived.length > 0 && (
+          <>
+            {' '}
+            and adjusted{' '}
+            <span className="font-mono text-text">{apply.derived.join(', ')}</span> to keep the event
+            internally consistent
+          </>
+        )}
+        .
+      </p>
+
+      {/* The default is the bare recommendation. This offers the other view:
+          what would really happen once the fields that depend on the changed
+          one are brought into line. */}
+      <button
+        onClick={() => onRerun(!apply.consistent)}
+        className="mt-1.5 text-xs font-medium text-accent hover:underline"
+      >
+        {apply.consistent
+          ? 'Re-run with only the recommended field changed'
+          : 'Re-run with dependent fields brought into line'}
+      </button>
+
+      {apply.score.explanation?.reasons?.length ? (
+        <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-text-muted">
+          {apply.score.explanation.reasons.slice(0, 4).map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function Column({
+  label,
+  score,
+  level,
+  muted,
+}: {
+  label: string;
+  score: number;
+  level: string | null;
+  muted?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-text-muted">{label}</p>
+      <div className="mt-1 flex items-center gap-2">
+        {level && <RiskBadge level={toBadge(level)} />}
+        <span
+          className={`font-semibold ${muted ? 'text-base text-text-muted' : 'text-xl text-text'}`}
+        >
+          {score.toFixed(4)}
+        </span>
+      </div>
     </div>
   );
 }
