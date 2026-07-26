@@ -5,14 +5,7 @@ import { MailerService } from '../mailer/mailer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { RiskVerdict, UnifiedEvent } from './scorer.interface';
 import type { Decision } from './fraud-gateway.service';
-
-/** Band ordering — a level fires an alert when its rank >= the configured floor. */
-const RANK: Record<RiskLevel, number> = {
-  [RiskLevel.LOW]: 0,
-  [RiskLevel.MEDIUM]: 1,
-  [RiskLevel.HIGH]: 2,
-  [RiskLevel.CRITICAL]: 3,
-};
+import { SettingsService, atOrAbove } from '../settings/settings.service';
 
 const ACCENT: Record<RiskLevel, string> = {
   [RiskLevel.LOW]: '#16a34a',
@@ -54,15 +47,17 @@ export class RiskAlertService {
   constructor(
     private readonly mailer: MailerService,
     private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
   ) {}
 
-  private get floor(): number {
-    const configured = env.riskAlert.minLevel as RiskLevel;
-    return RANK[configured] ?? RANK[RiskLevel.MEDIUM];
-  }
-
-  shouldAlert(level: RiskLevel): boolean {
-    return env.riskAlert.enabled && RANK[level] >= this.floor;
+  /**
+   * Whether this band mails, per the operator's current Settings (§8.14).
+   * Read per event rather than at boot, so lowering the floor mid-demo starts
+   * mailing on the very next transaction.
+   */
+  async shouldAlert(level: RiskLevel): Promise<boolean> {
+    const { alertEnabled, alertMinLevel } = await this.settings.get();
+    return alertEnabled && atOrAbove(level, alertMinLevel);
   }
 
   /** Fire-and-forget. Never throws; never blocks the money path. */
@@ -72,8 +67,6 @@ export class RiskAlertService {
     decision: Decision,
     ctx: AlertContext,
   ): void {
-    if (!this.shouldAlert(verdict.riskLevel)) return;
-
     void this.send(event, verdict, decision, ctx).catch((err: unknown) => {
       this.logger.error(
         `Risk alert mail failed for ${event.eventId ?? event.eventType}: ${String(err)}`,
@@ -87,6 +80,10 @@ export class RiskAlertService {
     decision: Decision,
     ctx: AlertContext,
   ): Promise<void> {
+    // The band check moved in here with the settings lookup: notify() stays
+    // synchronous and un-awaited, so the money path is unchanged.
+    if (!(await this.shouldAlert(verdict.riskLevel))) return;
+
     const [user, payment] = await Promise.all([
       ctx.userId
         ? this.prisma.user.findUnique({
@@ -150,12 +147,18 @@ export class RiskAlertService {
       );
     }
 
-    await this.mailer.send(recipient, subject, this.html(level, rows, verdict), {
+    const { alertMinLevel } = await this.settings.get();
+    await this.mailer.send(recipient, subject, this.html(level, rows, verdict, alertMinLevel), {
       from: env.riskAlert.from,
     });
   }
 
-  private html(level: RiskLevel, rows: [string, string][], verdict: RiskVerdict): string {
+  private html(
+    level: RiskLevel,
+    rows: [string, string][],
+    verdict: RiskVerdict,
+    minLevel: RiskLevel,
+  ): string {
     const accent = ACCENT[level];
     const cells = rows
       .map(
@@ -196,7 +199,7 @@ export class RiskAlertService {
           ${modelBlock}
           <p style="margin:20px 0 0;font-size:12px;color:#94a3b8">
             Automated alert from the FinSpark fraud gateway. Every activity on your
-            account scored at or above ${esc(env.riskAlert.minLevel)} is mailed to you
+            account scored at or above ${esc(minLevel)} is mailed to you
             individually — no batching. If you did not perform this activity, contact
             the bank immediately.
           </p>

@@ -18,6 +18,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { AnalystModule } from './analyst/analyst.module';
 import { SentinelModule } from './sentinel/sentinel.module';
+import { SettingsModule } from './settings/settings.module';
 import { DemoTestsModule } from './demo-tests/demo-tests.module';
 import { AppController } from './app.controller';
 
@@ -28,6 +29,9 @@ import { AppController } from './app.controller';
     // in common/throttler.config.ts; routes opt into a tier with @Throttle.
     ThrottlerModule.forRoot(throttlerOptions()),
     PrismaModule,
+    // Global, and listed before its consumers: the fraud gateway, the alert
+    // mailer, payments and the ledger all read runtime policy from it.
+    SettingsModule,
     MailerModule,
     OtpModule,
     AuthModule,

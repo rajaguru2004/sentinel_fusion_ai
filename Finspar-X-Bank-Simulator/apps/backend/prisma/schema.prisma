@@ -444,3 +444,43 @@ model AuditLog {
   @@index([entity, entityId])
   @@map("audit_logs")
 }
+
+/// Operator-editable runtime policy — the Settings page (§8.14).
+///
+/// Single row, id "singleton". Everything here was previously an env var or a
+/// hardcoded constant, i.e. a restart to change. It now lives in the database so
+/// the values are read on EVERY scored event and EVERY payment; the defaults
+/// below reproduce the old compiled-in behaviour exactly, so an un-touched
+/// install behaves identically to before this table existed.
+model AppSetting {
+  id String @id @default("singleton")
+
+  // --- 1. Risk-alert email ---------------------------------------------------
+  /// Master switch for fraud alert mail (was RISK_ALERT_ENABLED).
+  alertEnabled  Boolean   @default(true)
+  /// Lowest band that mails the customer (was RISK_ALERT_MIN_LEVEL).
+  alertMinLevel RiskLevel @default(MEDIUM)
+
+  // --- 2. Payment blocking ---------------------------------------------------
+  /// Master switch. Off => a payment is never auto-BLOCKed; the band's normal
+  /// decision applies instead, so the worst outcome is HOLD for analyst review.
+  blockEnabled  Boolean   @default(true)
+  /// Lowest band at which a payment is BLOCKed and the account frozen. The
+  /// CRITICAL default reproduces the previous hardcoded ladder.
+  blockMinLevel RiskLevel @default(CRITICAL)
+
+  // --- 3. Per-transaction limit / cut-off ------------------------------------
+  /// Paise. Above this a payment defers to the next working day (was the
+  /// PER_TXN_LIMIT_PAISE constant, 25,00,000 rupees).
+  perTxnLimitPaise BigInt  @default(250000000)
+  /// Apply the NEFT/RTGS cut-off at all. Off => rail cut-off never defers.
+  cutoffEnabled    Boolean @default(true)
+  /// Cut-off wall-clock time, server local (was the hardcoded 19:30).
+  cutoffHour       Int     @default(19)
+  cutoffMinute     Int     @default(30)
+
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("app_settings")
+}

@@ -6,6 +6,7 @@ import { RiskAlertService } from './risk-alert.service';
 import { LiveAlertsService } from './live-alerts.service';
 import { resolveGeo } from './geoip';
 import { env } from '../common/env';
+import { SettingsService, atOrAbove } from '../settings/settings.service';
 
 export type Decision = 'EXECUTE' | 'CHALLENGE' | 'HOLD' | 'BLOCK';
 
@@ -33,18 +34,34 @@ export class FraudGateway {
     @Inject(SCORER) private readonly scorer: Scorer,
     private readonly alerts: RiskAlertService,
     private readonly live: LiveAlertsService,
+    private readonly settings: SettingsService,
   ) {}
 
-  private decide(level: RiskLevel): Decision {
+  /**
+   * Band -> action, with the BLOCK threshold under operator control (§8.14).
+   *
+   * The base ladder is unchanged. On top of it, any band at or above the
+   * configured `blockMinLevel` escalates to BLOCK, and turning blocking off
+   * removes BLOCK from the ladder entirely — a CRITICAL payment then falls back
+   * to HOLD, so it is still stopped and still queued for analyst review, just
+   * without freezing the customer's account.
+   *
+   * Defaults (enabled, CRITICAL) reproduce the previous hardcoded switch.
+   */
+  private async decide(level: RiskLevel): Promise<Decision> {
+    const { blockEnabled, blockMinLevel } = await this.settings.get();
+    if (blockEnabled && atOrAbove(level, blockMinLevel)) return 'BLOCK';
+
     switch (level) {
       case RiskLevel.LOW:
         return 'EXECUTE';
       case RiskLevel.MEDIUM:
         return 'CHALLENGE';
       case RiskLevel.HIGH:
-        return 'HOLD';
+      // Blocking is off (or its floor is above CRITICAL): hold rather than
+      // block, so the money is still stopped short of the ledger.
       case RiskLevel.CRITICAL:
-        return 'BLOCK';
+        return 'HOLD';
     }
   }
 
@@ -60,7 +77,7 @@ export class FraudGateway {
     // to move the score on its own (see feature_spec.py:161 and the probe
     // results in tests/specs/02-habits-watcher.spec.ts).
     const verdict = applyCountryPolicy(event, mlVerdict);
-    const decision = this.decide(verdict.riskLevel);
+    const decision = await this.decide(verdict.riskLevel);
 
     const persisted = await this.prisma.fraudEvent.create({
       data: {

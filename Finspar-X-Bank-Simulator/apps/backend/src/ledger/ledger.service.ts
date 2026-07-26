@@ -1,7 +1,18 @@
-import { Injectable, Logger, BadRequestException, ConflictException } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import { Prisma, LedgerDirection, PaymentStatus } from '@prisma/client';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  ConflictException,
+  type OnModuleInit,
+} from '@nestjs/common';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
+import { Prisma, LedgerDirection, PaymentStatus, type AppSetting } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
+
+/** Registry key for the cut-off job, so re-arming can find and replace it. */
+const CUTOFF_JOB = 'ledger-cutoff';
 
 /** Outcome of a post attempt, so callers can tell a fresh post from a replay. */
 export type PostResult = 'POSTED' | 'ALREADY_POSTED';
@@ -25,10 +36,45 @@ export type PostResult = 'POSTED' | 'ALREADY_POSTED';
  *    constraint. Replays are detected up front and reported, not re-applied.
  */
 @Injectable()
-export class LedgerService {
+export class LedgerService implements OnModuleInit {
   private readonly logger = new Logger(LedgerService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+    private readonly scheduler: SchedulerRegistry,
+  ) {}
+
+  /**
+   * The cut-off batch runs at the operator-configured time, so it cannot drift
+   * away from the per-payment cut-off check in PaymentsService. That rules out
+   * a `@Cron('30 19 * * 1-5')` annotation — the expression is fixed at class
+   * definition — so the job is registered here instead and re-armed whenever
+   * the setting changes.
+   */
+  async onModuleInit(): Promise<void> {
+    await this.armCutoff(await this.settings.get());
+    this.settings.onChange((s) => void this.armCutoff(s));
+  }
+
+  private async armCutoff(cfg: AppSetting): Promise<void> {
+    if (this.scheduler.doesExist('cron', CUTOFF_JOB)) {
+      this.scheduler.getCronJob(CUTOFF_JOB).stop();
+      this.scheduler.deleteCronJob(CUTOFF_JOB);
+    }
+    if (!cfg.cutoffEnabled) {
+      this.logger.log('Cut-off job disabled by settings — not scheduled');
+      return;
+    }
+    // Weekdays only: NEFT/RTGS do not settle at the weekend.
+    const expression = `${cfg.cutoffMinute} ${cfg.cutoffHour} * * 1-5`;
+    const job = new CronJob(expression, () => {
+      void this.runCutoff();
+    });
+    this.scheduler.addCronJob(CUTOFF_JOB, job);
+    job.start();
+    this.logger.log(`Cut-off job armed for ${expression} (weekdays)`);
+  }
 
   /**
    * Make sure the per-customer settlement counter-account exists.
@@ -270,16 +316,16 @@ export class LedgerService {
   }
 
   /**
-   * NEFT/RTGS cut-off job. Runs on weekdays at 19:30; releases HELD-by-cutoff
-   * payments (valueDate reached) into the ledger. Fraud holds are left untouched
-   * (they have a riskLevel of HIGH/CRITICAL).
+   * NEFT/RTGS cut-off job. Runs on weekdays at the configured cut-off time (see
+   * armCutoff); releases HELD-by-cutoff payments (valueDate reached) into the
+   * ledger. Fraud holds are left untouched (they have a riskLevel of
+   * HIGH/CRITICAL).
    *
    * The hold release now happens inside postPayment's transaction, so a failing
    * post leaves the payment exactly as it was — still HELD, funds still
    * reserved — and the next run retries it cleanly instead of releasing the
    * hold a second time.
    */
-  @Cron('30 19 * * 1-5')
   async runCutoff(): Promise<void> {
     const due = await this.prisma.payment.findMany({
       where: {

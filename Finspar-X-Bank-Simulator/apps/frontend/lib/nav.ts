@@ -11,6 +11,7 @@ import {
   Radar,
   Gauge,
   Swords,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export interface NavChild {
@@ -74,4 +75,6 @@ export const NAV: NavItem[] = [
   { label: 'Sentinel Console', href: '/sentinel', icon: Radar },
   { label: 'Attack Replay', href: '/sentinel/attack-replay', icon: Swords },
   { label: 'Model Benchmark', href: '/sentinel/benchmark', icon: Gauge },
+  // Runtime fraud policy — alert threshold, block threshold, limit and cut-off.
+  { label: 'Settings', href: '/settings', icon: SlidersHorizontal },
 ];

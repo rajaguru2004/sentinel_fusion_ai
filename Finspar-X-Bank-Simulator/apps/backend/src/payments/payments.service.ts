@@ -5,11 +5,11 @@ import { OtpService } from '../otp/otp.service';
 import { FraudGateway } from '../fraud/fraud-gateway.service';
 import { LedgerService, type PostResult } from '../ledger/ledger.service';
 import { AuthService } from '../auth/auth.service';
+import { SettingsService } from '../settings/settings.service';
 import { amountInWords } from './amount-in-words';
 import type { InitiatePaymentDto, SubmitPaymentDto, UpdatePaymentDto } from './dto/payment.dto';
 import type { JwtPayload } from '../auth/jwt.strategy';
 
-const PER_TXN_LIMIT_PAISE = 2_500_000_00n; // ₹25,00,000
 const EDITABLE: PaymentStatus[] = [PaymentStatus.NEW, PaymentStatus.PENDING_AUTH, PaymentStatus.HELD];
 // Statuses that can still be submitted (final OTP + txn password). CHALLENGED is
 // the state a MEDIUM-risk payment is parked in after confirm() — it must remain
@@ -42,6 +42,7 @@ export class PaymentsService {
     private readonly gateway: FraudGateway,
     private readonly ledger: LedgerService,
     private readonly auth: AuthService,
+    private readonly settings: SettingsService,
   ) {}
 
   private toPaise(rupees: number): bigint {
@@ -210,9 +211,15 @@ export class PaymentsService {
     const verified = await this.otp.verify(dto.otpRequestId, dto.code);
     if (verified.paymentId !== payment.id) throw new BadRequestException('OTP does not match this payment');
 
-    // Over-limit or past NEFT/RTGS cut-off -> hold for next working day.
-    const overLimit = payment.amount > PER_TXN_LIMIT_PAISE;
-    const pastCutoff = this.isPastCutoff() && (payment.rail === 'NEFT' || payment.rail === 'RTGS');
+    // Over-limit or past NEFT/RTGS cut-off -> hold for next working day. Both
+    // thresholds come from the operator's Settings and are read here, per
+    // payment, so a change applies to the very next submit (§8.14).
+    const cfg = await this.settings.get();
+    const overLimit = payment.amount > cfg.perTxnLimitPaise;
+    const pastCutoff =
+      cfg.cutoffEnabled &&
+      this.isPastCutoff(cfg.cutoffHour, cfg.cutoffMinute) &&
+      (payment.rail === 'NEFT' || payment.rail === 'RTGS');
     if (overLimit || pastCutoff) {
       await this.prisma.payment.update({
         where: { id: payment.id },
@@ -248,9 +255,9 @@ export class PaymentsService {
     };
   }
 
-  private isPastCutoff(): boolean {
+  private isPastCutoff(hour: number, minute: number): boolean {
     const now = new Date();
-    return now.getHours() > 19 || (now.getHours() === 19 && now.getMinutes() >= 30);
+    return now.getHours() > hour || (now.getHours() === hour && now.getMinutes() >= minute);
   }
 
   private nextWorkingDay(): Date {
